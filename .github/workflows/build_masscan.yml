@@ -1,0 +1,31 @@
+name: Build Masscan for OpenWrt ARMv7
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/build_masscan.yml'
+
+jobs:
+  build:
+    name: Build Masscan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Masscan
+        run: git clone --depth 1 https://github.com/robertdavidgraham/masscan.git
+
+      - name: Set up QEMU for ARM emulation
+        uses: docker/setup-qemu-action@v3
+
+      - name: Compile statically in ARMv7 Alpine (musl)
+        run: |
+          docker run --rm -v ${{ github.workspace }}/masscan:/masscan -w /masscan arm32v7/alpine:latest sh -c "
+            apk add --no-cache build-base linux-headers &&
+            make -j4 CC='gcc -static' CFLAGS='-O3' LDFLAGS='-static'
+          "
+
+      - name: Upload Binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: masscan-armv7-openwrt
+          path: masscan/bin/masscan
