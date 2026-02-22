@@ -79,12 +79,12 @@ jobs:
       - name: Prepare release files
         run: |
           mkdir -p release
+          # actions/download-artifact@v4 with no path will create directories for each artifact name
           for dir in slipstream-client-*; do
             if [ -d "$dir" ]; then
-              for f in "$dir"/*; do
-                cp "$f" "release/$dir"
-                chmod +x "release/$dir"
-              done
+              # Get the file inside the directory and move it to release/ named as the artifact name
+              mv "$dir"/* "release/$dir"
+              chmod +x "release/$dir"
             fi
           done
           ls -la release/
