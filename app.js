@@ -32,16 +32,17 @@ document.addEventListener('DOMContentLoaded', () => {
 // ─── Parse Data from Bot ───────────────────────────────────────
 function parseInitData() {
     try {
-        // Data can come via URL hash fragment (encoded by the bot)
-        const hash = window.location.hash.substring(1);
-        if (hash) {
-            const decoded = decodeURIComponent(hash);
-            configData = JSON.parse(decoded);
-            populateUI(configData);
+        // Data is passed via the ?data= query parameter (since Telegram overrides the #hash)
+        const params = new URLSearchParams(window.location.search);
+        const dataParam = params.get('data');
+        if (dataParam) {
+            configData = JSON.parse(dataParam);
         }
     } catch (e) {
-        console.log('No initial data from bot, using defaults');
+        console.error('Failed to parse init data:', e);
     }
+    // Always initialize UI, even if empty
+    populateUI(configData);
 }
 
 // ─── Populate UI from Config Data ──────────────────────────────
