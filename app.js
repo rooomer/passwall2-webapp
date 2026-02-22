@@ -199,6 +199,15 @@ function renderNodes(nodes, activeId) {
         info.appendChild(meta);
         el.appendChild(dot);
         el.appendChild(info);
+
+        // Detail button
+        const detailBtn = document.createElement('button');
+        detailBtn.className = 'btn btn-sm btn-secondary node-detail-btn';
+        detailBtn.textContent = 'ℹ️';
+        detailBtn.title = 'Details';
+        detailBtn.onclick = (e) => { e.stopPropagation(); openNodeModal(n.id); };
+        el.appendChild(detailBtn);
+
         container.appendChild(el);
     });
 }
@@ -465,3 +474,62 @@ function escHtml(str) {
     if (!str) return '';
     return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
+
+// ─── Forwarding Settings ───────────────────────────────────────
+function setForwarding(key, value) {
+    pendingChanges['fwd_' + key] = value;
+    sendToBot(JSON.stringify({ action: 'set_forwarding', key: key, value: value }));
+    showMainButton();
+    showToast('Forwarding: ' + key + ' = ' + value);
+}
+
+// ─── Delay Settings ───────────────────────────────────────────
+function setDelay(key, value) {
+    pendingChanges['delay_' + key] = value;
+    sendToBot(JSON.stringify({ action: 'set_delay', key: key, value: value }));
+    showMainButton();
+    showToast('Delay: ' + key + ' = ' + value);
+}
+
+// ─── Node Detail Modal ────────────────────────────────────────
+let selectedNodeId = null;
+
+function openNodeModal(nodeId) {
+    selectedNodeId = nodeId;
+    const nodes = configData.nodes || [];
+    const node = nodes.find(n => (n.id || n.i) === nodeId);
+    const body = document.getElementById('nodeModalBody');
+    if (node) {
+        body.innerHTML = `
+            <div class="status-grid">
+                <div class="status-item"><span class="status-label">Name</span><span class="status-value">${escHtml(node.remark || node.r || '?')}</span></div>
+                <div class="status-item"><span class="status-label">ID</span><span class="status-value" style="font-size:0.75rem">${escHtml(nodeId)}</span></div>
+            </div>`;
+    } else {
+        body.innerHTML = '<p>Node not found</p>';
+    }
+    document.getElementById('nodeUseBtn').onclick = () => {
+        sendToBot(JSON.stringify({ action: 'set_node', node: nodeId }));
+        showToast('✅ Node activated');
+        closeNodeModal();
+    };
+    document.getElementById('nodeCopyBtn').onclick = () => {
+        sendToBot(JSON.stringify({ action: 'copy_node', node: nodeId }));
+        showToast('📋 Node copied');
+        closeNodeModal();
+    };
+    document.getElementById('nodeDelBtn').onclick = () => {
+        if (confirm('Delete this node?')) {
+            sendToBot(JSON.stringify({ action: 'delete_node', node: nodeId }));
+            showToast('🗑️ Node deleted');
+            closeNodeModal();
+        }
+    };
+    document.getElementById('nodeModal').style.display = 'flex';
+}
+
+function closeNodeModal() {
+    document.getElementById('nodeModal').style.display = 'none';
+    selectedNodeId = null;
+}
+
