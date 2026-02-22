@@ -895,6 +895,61 @@ function buildSvcCard(s) {
 }
 
 // ═══════════════════════════════════════════════════════════════
+//  SLIPSTREAM DNS TUNNEL
+// ═══════════════════════════════════════════════════════════════
+
+async function refreshSlipstream() {
+    const log = document.getElementById('slipLog');
+    log.textContent = 'Checking status...';
+    try {
+        const r = await apiCall('/api/action/slipstream_status', 'POST', {});
+        const badge = document.getElementById('slipStatus');
+        if (r.running) { badge.textContent = 'RUNNING'; badge.className = 'svc-badge svc-up'; }
+        else { badge.textContent = 'STOPPED'; badge.className = 'svc-badge svc-down'; }
+        document.getElementById('slipArch').textContent = 'Arch: ' + (r.arch || '—');
+        document.getElementById('slipInstalled').textContent = 'Binary: ' + (r.installed ? '✅' : '❌');
+        document.getElementById('slipPort').textContent = 'Port: ' + (r.port || '—');
+        if (r.domain) document.getElementById('slipDomain').value = r.domain;
+        if (r.resolver) document.getElementById('slipResolver').value = r.resolver;
+        log.textContent = JSON.stringify(r, null, 2);
+    } catch (e) { log.textContent = '❌ Failed to get status'; }
+}
+
+async function slipstreamConnect() {
+    const domain = document.getElementById('slipDomain').value.trim();
+    const resolver = document.getElementById('slipResolver').value.trim();
+    const cert = document.getElementById('slipCert').value.trim();
+    const log = document.getElementById('slipLog');
+    if (!domain || !resolver) { log.textContent = '⚠️ Domain and Resolver are required'; return; }
+    log.textContent = '🚀 Saving config and connecting...';
+    try {
+        const r = await apiCall('/api/action/set_slipstream_config', 'POST', { domain, resolver, cert });
+        log.textContent = r.ok ? '✅ ' + r.msg : '❌ ' + r.msg;
+        setTimeout(refreshSlipstream, 2000);
+    } catch (e) { log.textContent = '❌ Connection failed'; }
+}
+
+async function slipstreamDisconnect() {
+    const log = document.getElementById('slipLog');
+    log.textContent = '⛔ Disconnecting...';
+    try {
+        const r = await apiCall('/api/action/slipstream_stop', 'POST', {});
+        log.textContent = '✅ ' + r.msg;
+        setTimeout(refreshSlipstream, 1000);
+    } catch (e) { log.textContent = '❌ Failed'; }
+}
+
+async function slipstreamInstall() {
+    const log = document.getElementById('slipLog');
+    log.textContent = '📦 Downloading binary for your architecture...';
+    try {
+        const r = await apiCall('/api/action/slipstream_install', 'POST', {});
+        log.textContent = r.ok ? '✅ ' + r.msg : '❌ ' + r.msg;
+        setTimeout(refreshSlipstream, 1000);
+    } catch (e) { log.textContent = '❌ Install failed'; }
+}
+
+// ═══════════════════════════════════════════════════════════════
 //  TABS
 // ═══════════════════════════════════════════════════════════════
 

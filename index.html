@@ -331,6 +331,43 @@
                 </div>
             </div>
 
+            <!-- Slipstream DNS Tunnel -->
+            <div class="card glass">
+                <div class="card-header">
+                    <h2>⚡ Slipstream DNS Tunnel</h2>
+                    <div class="header-actions">
+                        <span class="svc-badge" id="slipStatus">—</span>
+                        <button class="btn btn-primary btn-sm" onclick="refreshSlipstream()">🔄</button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="slip-status-row" id="slipStatusRow">
+                        <span id="slipArch">Arch: —</span>
+                        <span id="slipInstalled">Binary: —</span>
+                        <span id="slipPort">Port: —</span>
+                    </div>
+                    <div class="custom-input-group">
+                        <label>Server Domain (-d)</label>
+                        <input type="text" id="slipDomain" placeholder="s.example.com">
+                    </div>
+                    <div class="custom-input-group">
+                        <label>Resolver IP:Port (-r)</label>
+                        <input type="text" id="slipResolver" placeholder="1.2.3.4:53">
+                    </div>
+                    <div class="custom-input-group">
+                        <label>Pinned Certificate (optional)</label>
+                        <textarea id="slipCert" rows="3"
+                            placeholder="Paste cert.pem contents here (leave empty if not used)"></textarea>
+                    </div>
+                    <div class="control-grid" style="margin-top:10px;">
+                        <button class="btn btn-success" onclick="slipstreamConnect()">🚀 Save & Connect</button>
+                        <button class="btn btn-danger" onclick="slipstreamDisconnect()">⛔ Disconnect</button>
+                        <button class="btn btn-warning" onclick="slipstreamInstall()">📦 Install Binary</button>
+                    </div>
+                    <pre class="result-box" id="slipLog" style="margin-top:8px;"></pre>
+                </div>
+            </div>
+
             <div class="card glass">
                 <div class="card-header">
                     <h2>🔄 Subscriptions</h2>
