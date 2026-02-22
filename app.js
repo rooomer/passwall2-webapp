@@ -72,8 +72,8 @@ async function apiCall(endpoint, method = 'GET', body = null) {
 }
 
 // ─── Load Full Config from Router ──────────────────────────────
-async function loadConfig(retries = 8, delay = 2000) {
-    showToast('Loading config...');
+async function loadConfig(retries = 30, delay = 5000) {
+    showToast('⏳ Connecting to router...');
     for (let attempt = 1; attempt <= retries; attempt++) {
         try {
             configData = await apiCall('/api/config');
@@ -82,11 +82,14 @@ async function loadConfig(retries = 8, delay = 2000) {
             return; // success!
         } catch (e) {
             if (attempt < retries) {
-                showToast(`⏳ Tunnel warming up... retry ${attempt}/${retries}`);
+                const mins = Math.floor((attempt * delay / 1000) / 60);
+                const secs = Math.floor((attempt * delay / 1000) % 60);
+                showToast(`⏳ Tunnel warming up... ${mins}:${String(secs).padStart(2, '0')} (retry ${attempt}/${retries})`);
                 await new Promise(r => setTimeout(r, delay));
-                delay = Math.min(delay * 1.5, 10000); // backoff, max 10s
+                // Keep delay at 10s after first few tries
+                if (delay < 10000) delay = Math.min(delay * 1.3, 10000);
             } else {
-                showToast('❌ Failed to load config — check tunnel');
+                showToast('❌ Failed to connect — try refreshing the page');
             }
         }
     }
