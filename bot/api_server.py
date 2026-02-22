@@ -678,12 +678,14 @@ def _dispatch_action(action, body):
         check_ns = body.get("check_ns", False)
         domains = body.get("domains", "")
         source_port = int(body.get("source_port", 0))
+        pre_scan_port = int(body.get("pre_scan_port", 0))
+        pre_scan_rate = int(body.get("pre_scan_rate", 1000))
         if not domain or not cidr_text:
             return {"ok": False, "msg": "domain and cidr_text required"}
         ok, msg = ds.start_scan(domain, cidr_text, concurrency, timeout,
                                 dns_type, random_subdomain, preset, sample_size,
                                 blacklist_enabled, auto_retry, check_ns, domains,
-                                source_port)
+                                source_port, pre_scan_port, pre_scan_rate)
         return {"ok": ok, "msg": msg}
 
     elif action == "dns_scanner_status":

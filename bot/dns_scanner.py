@@ -482,7 +482,8 @@ class DnsScanner:
               random_subdomain: bool = True, preset: str = "normal",
               sample_size: int = 0, blacklist_enabled: bool = False,
               auto_retry: bool = False, check_ns: bool = False,
-              domains: str = "", source_port: int = 0):
+              domains: str = "", source_port: int = 0,
+              pre_scan_port: int = 0, pre_scan_rate: int = 1000):
         """Begin scanning in a background thread."""
         with self._lock:
             if self._running:
@@ -514,6 +515,8 @@ class DnsScanner:
         self._auto_retry = auto_retry
         self._check_ns = check_ns
         self._source_port = source_port
+        self._pre_scan_port = pre_scan_port
+        self._pre_scan_rate = pre_scan_rate
 
         # Multi-domain support
         self._domains = [d.strip() for d in domains.split(",") if d.strip()] if domains else []
@@ -1262,11 +1265,12 @@ def start_scan(domain: str, cidr_text: str, concurrency: int = 200,
                random_subdomain: bool = True, preset: str = "normal",
                sample_size: int = 0, blacklist_enabled: bool = False,
                auto_retry: bool = False, check_ns: bool = False,
-               domains: str = "", source_port: int = 0):
+               domains: str = "", source_port: int = 0,
+               pre_scan_port: int = 0, pre_scan_rate: int = 1000):
     return _scanner.start(domain, cidr_text, concurrency, timeout,
                           dns_type, random_subdomain, preset, sample_size,
                           blacklist_enabled, auto_retry, check_ns, domains,
-                          source_port)
+                          source_port, pre_scan_port, pre_scan_rate)
 
 def stop_scan():
     return _scanner.stop()
