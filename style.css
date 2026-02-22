@@ -1002,3 +1002,71 @@ body {
     background: rgba(255, 255, 255, 0.04);
     border-radius: 8px;
 }
+
+/* ─── Profile List ─────────────────────────────────── */
+.profile-list-container {
+    margin-bottom: 12px;
+}
+
+.profile-list-title {
+    font-size: 0.8rem;
+    color: rgba(255, 255, 255, 0.5);
+    margin: 0 0 6px 0;
+}
+
+.profile-list-title small {
+    font-weight: 400;
+    opacity: 0.7;
+}
+
+.profile-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    max-height: 160px;
+    overflow-y: auto;
+}
+
+.profile-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 10px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.04);
+    cursor: pointer;
+    transition: all 0.2s;
+    font-size: 0.78rem;
+}
+
+.profile-item:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.profile-active {
+    background: rgba(76, 175, 80, 0.15) !important;
+    border-left: 3px solid #4caf50;
+}
+
+.profile-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.profile-info small {
+    color: rgba(255, 255, 255, 0.45);
+    font-size: 0.68rem;
+}
+
+.active-profile-badge {
+    font-size: 0.7rem;
+    color: #4caf50;
+    font-weight: 600;
+}
+
+.btn-xs {
+    padding: 2px 6px !important;
+    font-size: 0.65rem !important;
+    min-width: auto !important;
+}

@@ -345,6 +345,13 @@
                         <span id="slipArch">Arch: —</span>
                         <span id="slipInstalled">Binary: —</span>
                         <span id="slipPort">Port: —</span>
+                        <span id="slipActiveProfile" class="active-profile-badge"></span>
+                    </div>
+                    <div class="profile-list-container">
+                        <h3 class="profile-list-title">📋 Profiles <small>(click to switch)</small></h3>
+                        <div id="slipProfileList" class="profile-list">
+                            <div class="empty-state">Click 🔄 to load</div>
+                        </div>
                     </div>
                     <div class="custom-input-group">
                         <label>Server Domain (-d)</label>
@@ -363,6 +370,7 @@
                         <button class="btn btn-success" onclick="slipstreamConnect()">🚀 Save & Connect</button>
                         <button class="btn btn-danger" onclick="slipstreamDisconnect()">⛔ Disconnect</button>
                         <button class="btn btn-warning" onclick="slipstreamInstall()">📦 Install Binary</button>
+                        <button class="btn btn-secondary" onclick="slipstreamSaveProfile()">💾 Save as Profile</button>
                     </div>
                     <pre class="result-box" id="slipLog" style="margin-top:8px;"></pre>
                 </div>
@@ -382,6 +390,13 @@
                         <span id="dnsttArch">Arch: —</span>
                         <span id="dnsttInstalled">Binary: —</span>
                         <span id="dnsttPort">Port: —</span>
+                        <span id="dnsttActiveProfile" class="active-profile-badge"></span>
+                    </div>
+                    <div class="profile-list-container">
+                        <h3 class="profile-list-title">📋 Profiles <small>(click to switch)</small></h3>
+                        <div id="dnsttProfileList" class="profile-list">
+                            <div class="empty-state">Click 🔄 to load</div>
+                        </div>
                     </div>
                     <div class="custom-input-group">
                         <label>Tunnel Domain</label>
@@ -395,6 +410,14 @@
                         <label>Resolver (optional)</label>
                         <input type="text" id="dnsttResolver" placeholder="8.8.8.8">
                     </div>
+                    <div class="select-group">
+                        <label>Transport</label>
+                        <select id="dnsttTransport">
+                            <option value="udp" selected>UDP (default)</option>
+                            <option value="doh">DoH (DNS over HTTPS)</option>
+                            <option value="dot">DoT (DNS over TLS)</option>
+                        </select>
+                    </div>
                     <div class="custom-input-group">
                         <label>Listen Port</label>
                         <input type="number" id="dnsttListenPort" value="7000" placeholder="7000">
@@ -403,6 +426,7 @@
                         <button class="btn btn-success" onclick="dnsttConnect()">🚀 Save & Connect</button>
                         <button class="btn btn-danger" onclick="dnsttDisconnect()">⛔ Disconnect</button>
                         <button class="btn btn-warning" onclick="dnsttInstall()">📦 Install Binary</button>
+                        <button class="btn btn-secondary" onclick="dnsttSaveProfile()">💾 Save as Profile</button>
                     </div>
                     <pre class="result-box" id="dnsttLog" style="margin-top:8px;"></pre>
                 </div>

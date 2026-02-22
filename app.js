@@ -895,7 +895,7 @@ function buildSvcCard(s) {
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  SLIPSTREAM DNS TUNNEL
+//  SLIPSTREAM DNS TUNNEL (with profiles)
 // ═══════════════════════════════════════════════════════════════
 
 async function refreshSlipstream() {
@@ -911,22 +911,81 @@ async function refreshSlipstream() {
         document.getElementById('slipPort').textContent = 'Port: ' + (r.port || '—');
         if (r.domain) document.getElementById('slipDomain').value = r.domain;
         if (r.resolver) document.getElementById('slipResolver').value = r.resolver;
+        if (r.active_profile) document.getElementById('slipActiveProfile').textContent = '📌 ' + r.active_profile;
         log.textContent = JSON.stringify(r, null, 2);
+        loadSlipProfiles();
     } catch (e) { log.textContent = '❌ Failed to get status'; }
+}
+
+async function loadSlipProfiles() {
+    try {
+        const r = await apiCall('/api/action/slipstream_profiles', 'POST', {});
+        const list = document.getElementById('slipProfileList');
+        if (!list) return;
+        if (!r.profiles || r.profiles.length === 0) {
+            list.innerHTML = '<div class="empty-state">No profiles yet</div>';
+            return;
+        }
+        list.innerHTML = r.profiles.map(p => `
+            <div class="profile-item ${p.name === r.active ? 'profile-active' : ''}" onclick="switchSlipProfile('${p.name}')">
+                <div class="profile-info">
+                    <strong>${p.name === r.active ? '✅ ' : ''}${p.name}</strong>
+                    <small>${p.domain || '—'} → ${p.resolver || '—'}</small>
+                </div>
+                <div class="profile-actions">
+                    <button class="btn btn-danger btn-xs" onclick="event.stopPropagation();deleteSlipProfile('${p.name}')">🗑️</button>
+                </div>
+            </div>
+        `).join('');
+    } catch (e) { /* silent */ }
+}
+
+async function switchSlipProfile(name) {
+    const log = document.getElementById('slipLog');
+    log.textContent = '🔄 Switching to ' + name + '...';
+    try {
+        const r = await apiCall('/api/action/slipstream_switch_profile', 'POST', { name });
+        log.textContent = r.ok ? '✅ ' + r.msg : '❌ ' + r.msg;
+        setTimeout(refreshSlipstream, 1500);
+    } catch (e) { log.textContent = '❌ Switch failed'; }
+}
+
+async function deleteSlipProfile(name) {
+    if (!confirm('Delete profile "' + name + '"?')) return;
+    try {
+        await apiCall('/api/action/slipstream_delete_profile', 'POST', { name });
+        loadSlipProfiles();
+    } catch (e) { /* silent */ }
 }
 
 async function slipstreamConnect() {
     const domain = document.getElementById('slipDomain').value.trim();
     const resolver = document.getElementById('slipResolver').value.trim();
     const cert = document.getElementById('slipCert').value.trim();
+    const congestion = document.getElementById('slipCongestion')?.value || 'dcubic';
     const log = document.getElementById('slipLog');
     if (!domain || !resolver) { log.textContent = '⚠️ Domain and Resolver are required'; return; }
     log.textContent = '🚀 Saving config and connecting...';
     try {
-        const r = await apiCall('/api/action/set_slipstream_config', 'POST', { domain, resolver, cert });
+        const r = await apiCall('/api/action/set_slipstream_config', 'POST', { domain, resolver, cert, congestion });
         log.textContent = r.ok ? '✅ ' + r.msg : '❌ ' + r.msg;
         setTimeout(refreshSlipstream, 2000);
     } catch (e) { log.textContent = '❌ Connection failed'; }
+}
+
+async function slipstreamSaveProfile() {
+    const name = prompt('Profile name:');
+    if (!name) return;
+    const domain = document.getElementById('slipDomain').value.trim();
+    const resolver = document.getElementById('slipResolver').value.trim();
+    const cert = document.getElementById('slipCert').value.trim();
+    const congestion = document.getElementById('slipCongestion')?.value || 'dcubic';
+    const log = document.getElementById('slipLog');
+    try {
+        const r = await apiCall('/api/action/slipstream_add_profile', 'POST', { name, domain, resolver, cert, congestion });
+        log.textContent = r.ok ? '✅ ' + r.msg : '❌ ' + r.msg;
+        loadSlipProfiles();
+    } catch (e) { log.textContent = '❌ Failed to save profile'; }
 }
 
 async function slipstreamDisconnect() {
@@ -950,7 +1009,7 @@ async function slipstreamInstall() {
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  DNSTT DNS TUNNEL
+//  DNSTT DNS TUNNEL (with profiles)
 // ═══════════════════════════════════════════════════════════════
 
 async function refreshDnstt() {
@@ -968,8 +1027,52 @@ async function refreshDnstt() {
         if (r.pubkey) document.getElementById('dnsttPubkey').value = r.pubkey;
         if (r.resolver) document.getElementById('dnsttResolver').value = r.resolver;
         if (r.port) document.getElementById('dnsttListenPort').value = r.port;
+        if (r.transport) document.getElementById('dnsttTransport').value = r.transport;
+        if (r.active_profile) document.getElementById('dnsttActiveProfile').textContent = '📌 ' + r.active_profile;
         log.textContent = JSON.stringify(r, null, 2);
+        loadDnsttProfiles();
     } catch (e) { log.textContent = '❌ Failed to get status'; }
+}
+
+async function loadDnsttProfiles() {
+    try {
+        const r = await apiCall('/api/action/dnstt_profiles', 'POST', {});
+        const list = document.getElementById('dnsttProfileList');
+        if (!list) return;
+        if (!r.profiles || r.profiles.length === 0) {
+            list.innerHTML = '<div class="empty-state">No profiles yet</div>';
+            return;
+        }
+        list.innerHTML = r.profiles.map(p => `
+            <div class="profile-item ${p.name === r.active ? 'profile-active' : ''}" onclick="switchDnsttProfile('${p.name}')">
+                <div class="profile-info">
+                    <strong>${p.name === r.active ? '✅ ' : ''}${p.name}</strong>
+                    <small>${p.domain || '—'} (${p.transport || 'udp'})</small>
+                </div>
+                <div class="profile-actions">
+                    <button class="btn btn-danger btn-xs" onclick="event.stopPropagation();deleteDnsttProfile('${p.name}')">🗑️</button>
+                </div>
+            </div>
+        `).join('');
+    } catch (e) { /* silent */ }
+}
+
+async function switchDnsttProfile(name) {
+    const log = document.getElementById('dnsttLog');
+    log.textContent = '🔄 Switching to ' + name + '...';
+    try {
+        const r = await apiCall('/api/action/dnstt_switch_profile', 'POST', { name });
+        log.textContent = r.ok ? '✅ ' + r.msg : '❌ ' + r.msg;
+        setTimeout(refreshDnstt, 1500);
+    } catch (e) { log.textContent = '❌ Switch failed'; }
+}
+
+async function deleteDnsttProfile(name) {
+    if (!confirm('Delete profile "' + name + '"?')) return;
+    try {
+        await apiCall('/api/action/dnstt_delete_profile', 'POST', { name });
+        loadDnsttProfiles();
+    } catch (e) { /* silent */ }
 }
 
 async function dnsttConnect() {
@@ -977,14 +1080,31 @@ async function dnsttConnect() {
     const pubkey = document.getElementById('dnsttPubkey').value.trim();
     const resolver = document.getElementById('dnsttResolver').value.trim();
     const listen_port = parseInt(document.getElementById('dnsttListenPort').value) || 7000;
+    const transport = document.getElementById('dnsttTransport')?.value || 'udp';
     const log = document.getElementById('dnsttLog');
     if (!domain || !pubkey) { log.textContent = '⚠️ Domain and Public Key are required'; return; }
     log.textContent = '🚀 Saving config and connecting...';
     try {
-        const r = await apiCall('/api/action/set_dnstt_config', 'POST', { domain, pubkey, resolver, listen_port });
+        const r = await apiCall('/api/action/set_dnstt_config', 'POST', { domain, pubkey, resolver, listen_port, transport });
         log.textContent = r.ok ? '✅ ' + r.msg : '❌ ' + r.msg;
         setTimeout(refreshDnstt, 2000);
     } catch (e) { log.textContent = '❌ Connection failed'; }
+}
+
+async function dnsttSaveProfile() {
+    const name = prompt('Profile name:');
+    if (!name) return;
+    const domain = document.getElementById('dnsttDomain').value.trim();
+    const pubkey = document.getElementById('dnsttPubkey').value.trim();
+    const resolver = document.getElementById('dnsttResolver').value.trim();
+    const listen_port = parseInt(document.getElementById('dnsttListenPort').value) || 7000;
+    const transport = document.getElementById('dnsttTransport')?.value || 'udp';
+    const log = document.getElementById('dnsttLog');
+    try {
+        const r = await apiCall('/api/action/dnstt_add_profile', 'POST', { name, domain, pubkey, resolver, listen_port, transport });
+        log.textContent = r.ok ? '✅ ' + r.msg : '❌ ' + r.msg;
+        loadDnsttProfiles();
+    } catch (e) { log.textContent = '❌ Failed to save profile'; }
 }
 
 async function dnsttDisconnect() {
