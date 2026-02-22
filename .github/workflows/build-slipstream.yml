@@ -17,6 +17,9 @@ jobs:
           - arch: arm64
             docker_platform: linux/arm64
             artifact: slipstream-client-linux-arm64-musl
+          - arch: armv7
+            docker_platform: linux/arm/v7
+            artifact: slipstream-client-linux-armv7-musl
 
     steps:
       - name: Checkout slipstream-rust source
@@ -25,8 +28,8 @@ jobs:
           repository: Mygod/slipstream-rust
           submodules: recursive
 
-      - name: Set up QEMU (for arm64)
-        if: matrix.arch == 'arm64'
+      - name: Set up QEMU (for ARM builds)
+        if: matrix.arch != 'amd64'
         uses: docker/setup-qemu-action@v3
 
       - name: Build in Alpine container
@@ -93,6 +96,7 @@ jobs:
             |------|-------------|
             | `slipstream-client-linux-amd64-musl` | x86_64 |
             | `slipstream-client-linux-arm64-musl` | aarch64 (ARM64) |
+            | `slipstream-client-linux-armv7-musl` | ARMv7 (armhf/armv7l) |
           files: release/*
           prerelease: false
           make_latest: true
