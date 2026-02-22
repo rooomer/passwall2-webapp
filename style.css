@@ -1070,3 +1070,70 @@ body {
     font-size: 0.65rem !important;
     min-width: auto !important;
 }
+
+/* ── Modal overlay ─────────────────────────────────────────── */
+.modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, .55);
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.modal-content {
+    padding: 20px;
+    border-radius: 14px;
+    max-height: 80vh;
+    overflow-y: auto;
+}
+
+/* ── Data table for scanner results ────────────────────────── */
+.data-table {
+    border-collapse: collapse;
+}
+
+.data-table th,
+.data-table td {
+    padding: 4px 8px;
+    text-align: left;
+    border-bottom: 1px solid var(--glass-border, #333);
+}
+
+.data-table th {
+    font-weight: 600;
+    opacity: .7;
+    font-size: .8rem;
+}
+
+.data-table tr:hover {
+    background: rgba(255, 255, 255, .04);
+}
+
+/* latency colors */
+.lat-fast {
+    color: #00b894;
+}
+
+.lat-mid {
+    color: #fdcb6e;
+}
+
+.lat-slow {
+    color: #e17055;
+}
+
+/* CIDR list items inside modal */
+.cidr-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 8px;
+    border-bottom: 1px solid var(--glass-border, #333);
+    font-size: .85rem;
+}
+
+.cidr-item:last-child {
+    border-bottom: none;
+}

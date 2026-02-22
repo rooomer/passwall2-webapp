@@ -438,6 +438,88 @@
                 </div>
             </div>
 
+            <!-- DNS Tunnel Scanner -->
+            <div class="card glass">
+                <div class="card-header">
+                    <h2>📡 DNS Tunnel Scanner</h2>
+                    <div class="header-actions">
+                        <span class="svc-badge" id="scannerStatus">idle</span>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="form-grid">
+                        <label>Target Domain</label>
+                        <input type="text" id="scanDomain" placeholder="s.example.com">
+                        <label>CIDR Source</label>
+                        <div style="display:flex;gap:6px;">
+                            <select id="scanCidrSelect" style="flex:1;" onchange="onCidrSourceChange()">
+                                <option value="__custom__">✏️ Custom (enter below)</option>
+                            </select>
+                            <button class="btn btn-secondary btn-sm" onclick="openCidrModal()">📂 Manage Lists</button>
+                        </div>
+                        <label>IPs / CIDRs</label>
+                        <textarea id="scanCidrText" rows="4"
+                            placeholder="1.1.1.0/24&#10;8.8.8.0/24&#10;# one per line"></textarea>
+                        <label>Concurrency</label>
+                        <input type="number" id="scanConcurrency" value="200" min="1" max="2000">
+                        <label>Timeout (s)</label>
+                        <input type="number" id="scanTimeout" value="2" min="1" max="30" step="0.5">
+                    </div>
+                    <div class="control-grid" style="margin-top:10px;">
+                        <button class="btn btn-success" id="btnStartScan" onclick="startDnsScan()">🚀 Start
+                            Scan</button>
+                        <button class="btn btn-danger" id="btnStopScan" onclick="stopDnsScan()" disabled>⛔ Stop</button>
+                    </div>
+                    <!-- Progress -->
+                    <div id="scanProgress" style="margin-top:12px;display:none;">
+                        <div style="display:flex;justify-content:space-between;font-size:0.85rem;margin-bottom:4px;">
+                            <span id="scanProgressText">0 / 0</span>
+                            <span id="scanFoundText">Found: 0</span>
+                            <span id="scanElapsed">0s</span>
+                        </div>
+                        <div style="background:var(--glass-border);border-radius:6px;overflow:hidden;height:10px;">
+                            <div id="scanProgressBar"
+                                style="height:100%;background:var(--accent);width:0%;transition:width 0.4s;"></div>
+                        </div>
+                    </div>
+                    <!-- Results Table -->
+                    <div id="scanResultsWrap" style="margin-top:12px;max-height:300px;overflow-y:auto;display:none;">
+                        <table class="data-table" style="width:100%;font-size:0.85rem;">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>IP</th>
+                                    <th>Latency</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="scanResultsBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- CIDR Manager Modal -->
+            <div id="cidrModal" class="modal-overlay" style="display:none;"
+                onclick="if(event.target===this)closeCidrModal()">
+                <div class="modal-content glass" style="max-width:600px;width:90%;">
+                    <h3 style="margin:0 0 12px;">📂 Manage CIDR Lists</h3>
+                    <div id="cidrListContainer" style="max-height:200px;overflow-y:auto;margin-bottom:12px;"></div>
+                    <hr style="border-color:var(--glass-border);margin:10px 0;">
+                    <h4 style="margin:0 0 8px;">➕ Add New List</h4>
+                    <div class="form-grid">
+                        <label>Name</label>
+                        <input type="text" id="cidrNewName" placeholder="Iran – Irancell">
+                        <label>CIDRs</label>
+                        <textarea id="cidrNewContent" rows="5" placeholder="1.2.3.0/24&#10;5.6.7.0/24"></textarea>
+                    </div>
+                    <div style="display:flex;gap:8px;margin-top:10px;">
+                        <button class="btn btn-success" onclick="saveCidrList()">💾 Save</button>
+                        <button class="btn btn-secondary" onclick="closeCidrModal()">✖ Close</button>
+                    </div>
+                </div>
+            </div>
+
             <div class="card glass">
                 <div class="card-header">
                     <h2>🔄 Subscriptions</h2>

@@ -1196,3 +1196,172 @@ function escHtml(str) {
     if (!str) return '';
     return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
+
+// ═══════════════════════════════════════════════════════════════
+//  DNS TUNNEL SCANNER
+// ═══════════════════════════════════════════════════════════════
+let _scanPollTimer = null;
+
+async function startDnsScan() {
+    const domain = document.getElementById('scanDomain').value.trim();
+    const cidr_text = document.getElementById('scanCidrText').value.trim();
+    const concurrency = parseInt(document.getElementById('scanConcurrency').value) || 200;
+    const timeout = parseFloat(document.getElementById('scanTimeout').value) || 2;
+    if (!domain) { toast('⚠️ Target Domain is required'); return; }
+    if (!cidr_text) { toast('⚠️ Enter IPs/CIDRs or select a CIDR list'); return; }
+
+    document.getElementById('btnStartScan').disabled = true;
+    document.getElementById('btnStopScan').disabled = false;
+    document.getElementById('scanProgress').style.display = 'block';
+    document.getElementById('scanResultsWrap').style.display = 'block';
+    document.getElementById('scanResultsBody').innerHTML = '';
+
+    try {
+        const r = await apiCall('/api/action/dns_scanner_start', 'POST', { domain, cidr_text, concurrency, timeout });
+        toast(r.ok ? '🚀 ' + r.msg : '❌ ' + r.msg);
+        if (r.ok) {
+            _scanPollTimer = setInterval(pollScanStatus, 1500);
+        }
+    } catch (e) { toast('❌ Failed to start scan'); }
+}
+
+async function stopDnsScan() {
+    try {
+        await apiCall('/api/action/dns_scanner_stop', 'POST', {});
+        toast('⛔ Stop signal sent');
+    } catch (e) { /* ignore */ }
+}
+
+async function pollScanStatus() {
+    try {
+        const s = await apiCall('/api/action/dns_scanner_status', 'POST', {});
+        const pct = s.total > 0 ? Math.round((s.scanned / s.total) * 100) : 0;
+        document.getElementById('scanProgressBar').style.width = pct + '%';
+        document.getElementById('scanProgressText').textContent = `${s.scanned} / ${s.total}`;
+        document.getElementById('scanFoundText').textContent = `Found: ${s.found_count}`;
+        document.getElementById('scanElapsed').textContent = s.elapsed_s + 's';
+        document.getElementById('scannerStatus').textContent = s.running ? 'scanning…' : 'idle';
+
+        // render results
+        const tbody = document.getElementById('scanResultsBody');
+        const sorted = (s.found || []).sort((a, b) => a.ms - b.ms);
+        tbody.innerHTML = sorted.map((r, i) => {
+            const cls = r.ms < 100 ? 'lat-fast' : r.ms < 300 ? 'lat-mid' : 'lat-slow';
+            return `<tr>
+                <td>${i + 1}</td>
+                <td>${escHtml(r.ip)}</td>
+                <td class="${cls}">${r.ms}ms</td>
+                <td>
+                    <button class="btn btn-xs btn-success" onclick="applyScanIp('${r.ip}','slip')">→ Slip</button>
+                    <button class="btn btn-xs btn-primary" onclick="applyScanIp('${r.ip}','dnstt')">→ DNSTT</button>
+                </td>
+            </tr>`;
+        }).join('');
+
+        if (!s.running) {
+            clearInterval(_scanPollTimer);
+            _scanPollTimer = null;
+            document.getElementById('btnStartScan').disabled = false;
+            document.getElementById('btnStopScan').disabled = true;
+            toast('✅ Scan finished – found ' + s.found_count + ' DNS servers');
+        }
+    } catch (e) { /* keep polling */ }
+}
+
+function applyScanIp(ip, target) {
+    if (target === 'slip') {
+        document.getElementById('slipResolver').value = ip + ':53';
+        toast('✅ Applied ' + ip + ' to Slipstream resolver');
+    } else {
+        document.getElementById('dnsttResolver').value = ip + ':53';
+        toast('✅ Applied ' + ip + ' to DNSTT resolver');
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  CIDR LIST MANAGER
+// ═══════════════════════════════════════════════════════════════
+let _cidrCache = [];
+
+async function loadCidrLists() {
+    try {
+        const r = await apiCall('/api/action/get_cidr_lists', 'POST', {});
+        _cidrCache = r.lists || [];
+        populateCidrDropdown();
+    } catch (e) { /* ignore */ }
+}
+
+function populateCidrDropdown() {
+    const sel = document.getElementById('scanCidrSelect');
+    // keep the first "Custom" option
+    while (sel.options.length > 1) sel.remove(1);
+    _cidrCache.forEach(c => {
+        const opt = document.createElement('option');
+        opt.value = c.name;
+        opt.textContent = `📋 ${c.name} (${c.cidr_count} ranges)`;
+        sel.appendChild(opt);
+    });
+}
+
+async function onCidrSourceChange() {
+    const sel = document.getElementById('scanCidrSelect');
+    const ta = document.getElementById('scanCidrText');
+    if (sel.value === '__custom__') {
+        ta.value = '';
+        ta.disabled = false;
+        return;
+    }
+    try {
+        const r = await apiCall('/api/action/get_cidr_content', 'POST', { name: sel.value });
+        ta.value = r.content || '';
+        ta.disabled = true;
+    } catch (e) { toast('❌ Failed to load list'); }
+}
+
+function openCidrModal() {
+    document.getElementById('cidrModal').style.display = 'flex';
+    renderCidrModal();
+}
+function closeCidrModal() {
+    document.getElementById('cidrModal').style.display = 'none';
+}
+
+async function renderCidrModal() {
+    await loadCidrLists();
+    const c = document.getElementById('cidrListContainer');
+    if (_cidrCache.length === 0) {
+        c.innerHTML = '<div style="opacity:.6;text-align:center;padding:12px;">No saved CIDR lists</div>';
+        return;
+    }
+    c.innerHTML = _cidrCache.map(l => `
+        <div class="cidr-item">
+            <span><strong>${escHtml(l.name)}</strong> — ${l.cidr_count} ranges</span>
+            <button class="btn btn-xs btn-danger" onclick="deleteCidrList('${escHtml(l.name)}')">🗑</button>
+        </div>
+    `).join('');
+}
+
+async function saveCidrList() {
+    const name = document.getElementById('cidrNewName').value.trim();
+    const content = document.getElementById('cidrNewContent').value.trim();
+    if (!name || !content) { toast('⚠️ Name and content required'); return; }
+    try {
+        const r = await apiCall('/api/action/add_cidr_list', 'POST', { name, content });
+        toast(r.ok ? '✅ ' + r.msg : '❌ ' + r.msg);
+        document.getElementById('cidrNewName').value = '';
+        document.getElementById('cidrNewContent').value = '';
+        await renderCidrModal();
+    } catch (e) { toast('❌ Save failed'); }
+}
+
+async function deleteCidrList(name) {
+    if (!confirm(`Delete "${name}"?`)) return;
+    try {
+        const r = await apiCall('/api/action/delete_cidr_list', 'POST', { name });
+        toast(r.ok ? '✅ ' + r.msg : '❌ ' + r.msg);
+        await renderCidrModal();
+    } catch (e) { toast('❌ Delete failed'); }
+}
+
+// Load CIDR lists on page load
+document.addEventListener('DOMContentLoaded', () => { loadCidrLists(); });
