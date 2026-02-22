@@ -729,6 +729,27 @@ def _dispatch_action(action, body):
         ds = _get_dns_scanner()
         return ds.load_project()
 
+    elif action == "dns_scanner_install_masscan":
+        try:
+            import platform
+            arch = platform.machine()
+            if "armv7" not in arch.lower():
+                return {"ok": False, "msg": f"Auto-install currently only supports armv7. Your arch: {arch}"}
+            
+            import urllib.request
+            import subprocess
+            url = "https://github.com/rooomer/passwall2-webapp/releases/latest/download/masscan-armv7-openwrt.zip"
+            zip_path = "/tmp/masscan-armv7-openwrt.zip"
+            
+            urllib.request.urlretrieve(url, zip_path)
+            subprocess.run(["unzip", "-o", zip_path, "-d", "/tmp/"], check=True)
+            subprocess.run(["mv", "/tmp/masscan", "/usr/bin/masscan"], check=True)
+            subprocess.run(["chmod", "+x", "/usr/bin/masscan"], check=True)
+            
+            return {"ok": True, "msg": "Masscan installed successfully to /usr/bin/masscan"}
+        except Exception as e:
+            return {"ok": False, "msg": f"Install failed: {e}"}
+
     elif action == "dns_scanner_last_domain":
         ds = _get_dns_scanner()
         return {"domain": ds.load_last_domain()}
