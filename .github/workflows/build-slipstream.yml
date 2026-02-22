@@ -36,13 +36,13 @@ jobs:
           cat > Cross.toml << 'EOF'
           [target.x86_64-unknown-linux-musl]
           pre-build = [
-            "apt-get update && apt-get install -y cmake perl pkg-config musl-tools"
+            "DEBIAN_FRONTEND=noninteractive TZ=UTC apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends cmake perl pkg-config musl-tools"
           ]
 
           [target.aarch64-unknown-linux-musl]
           pre-build = [
             "dpkg --add-architecture arm64 || true",
-            "apt-get update && apt-get install -y cmake perl pkg-config"
+            "DEBIAN_FRONTEND=noninteractive TZ=UTC apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends cmake perl pkg-config"
           ]
           EOF
 
