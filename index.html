@@ -366,6 +366,9 @@
                         <textarea id="slipCert" rows="3"
                             placeholder="Paste cert.pem contents here (leave empty if not used)"></textarea>
                     </div>
+                    <div class="checkbox-group" style="margin-top:10px;">
+                        <label><input type="checkbox" id="slipSetActive"> Set as Active PassWall Node</label>
+                    </div>
                     <div class="control-grid" style="margin-top:10px;">
                         <button class="btn btn-success" onclick="slipstreamConnect()">🚀 Save & Connect</button>
                         <button class="btn btn-danger" onclick="slipstreamDisconnect()">⛔ Disconnect</button>
@@ -421,6 +424,9 @@
                     <div class="custom-input-group">
                         <label>Listen Port</label>
                         <input type="number" id="dnsttListenPort" value="7000" placeholder="7000">
+                    </div>
+                    <div class="checkbox-group" style="margin-top:10px;">
+                        <label><input type="checkbox" id="dnsttSetActive"> Set as Active PassWall Node</label>
                     </div>
                     <div class="control-grid" style="margin-top:10px;">
                         <button class="btn btn-success" onclick="dnsttConnect()">🚀 Save & Connect</button>

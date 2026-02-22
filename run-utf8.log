@@ -1,0 +1,82 @@
+﻿release	Set up job	∩╗┐2026-02-22T14:12:13.8200487Z Current runner version: '2.331.0'
+release	Set up job	2026-02-22T14:12:13.8234454Z ##[group]Runner Image Provisioner
+release	Set up job	2026-02-22T14:12:13.8235808Z Hosted Compute Agent
+release	Set up job	2026-02-22T14:12:13.8236859Z Version: 20260123.484
+release	Set up job	2026-02-22T14:12:13.8238029Z Commit: 6bd6555ca37d84114959e1c76d2c01448ff61c5d
+release	Set up job	2026-02-22T14:12:13.8239704Z Build Date: 2026-01-23T19:41:17Z
+release	Set up job	2026-02-22T14:12:13.8240934Z Worker ID: {5aa8de62-151a-4532-8c48-c4327242e508}
+release	Set up job	2026-02-22T14:12:13.8242237Z Azure Region: eastus2
+release	Set up job	2026-02-22T14:12:13.8243199Z ##[endgroup]
+release	Set up job	2026-02-22T14:12:13.8246192Z ##[group]Operating System
+release	Set up job	2026-02-22T14:12:13.8247169Z Ubuntu
+release	Set up job	2026-02-22T14:12:13.8248164Z 24.04.3
+release	Set up job	2026-02-22T14:12:13.8249219Z LTS
+release	Set up job	2026-02-22T14:12:13.8250009Z ##[endgroup]
+release	Set up job	2026-02-22T14:12:13.8250961Z ##[group]Runner Image
+release	Set up job	2026-02-22T14:12:13.8251947Z Image: ubuntu-24.04
+release	Set up job	2026-02-22T14:12:13.8252883Z Version: 20260201.15.1
+release	Set up job	2026-02-22T14:12:13.8254710Z Included Software: https://github.com/actions/runner-images/blob/ubuntu24/20260201.15/images/ubuntu/Ubuntu2404-Readme.md
+release	Set up job	2026-02-22T14:12:13.8257574Z Image Release: https://github.com/actions/runner-images/releases/tag/ubuntu24%2F20260201.15
+release	Set up job	2026-02-22T14:12:13.8259678Z ##[endgroup]
+release	Set up job	2026-02-22T14:12:13.8261370Z ##[group]GITHUB_TOKEN Permissions
+release	Set up job	2026-02-22T14:12:13.8264023Z Contents: write
+release	Set up job	2026-02-22T14:12:13.8264948Z Metadata: read
+release	Set up job	2026-02-22T14:12:13.8265797Z ##[endgroup]
+release	Set up job	2026-02-22T14:12:13.8269081Z Secret source: Actions
+release	Set up job	2026-02-22T14:12:13.8270329Z Prepare workflow directory
+release	Set up job	2026-02-22T14:12:13.8749260Z Prepare all required actions
+release	Set up job	2026-02-22T14:12:13.8807613Z Getting action download info
+release	Set up job	2026-02-22T14:12:14.1242839Z Download action repository 'actions/download-artifact@v4' (SHA:d3f86a106a0bac45b974a628896c90dbdf5c8093)
+release	Set up job	2026-02-22T14:12:14.4482441Z Download action repository 'softprops/action-gh-release@v2' (SHA:a06a81a03ee405af7f2048a818ed3f03bbf83c7b)
+release	Set up job	2026-02-22T14:12:14.7430433Z Complete job name: release
+release	Download all artifacts	∩╗┐2026-02-22T14:12:14.8099906Z ##[group]Run actions/download-artifact@v4
+release	Download all artifacts	2026-02-22T14:12:14.8100884Z with:
+release	Download all artifacts	2026-02-22T14:12:14.8101327Z   merge-multiple: false
+release	Download all artifacts	2026-02-22T14:12:14.8101804Z   repository: rooomer/passwall2-webapp
+release	Download all artifacts	2026-02-22T14:12:14.8102317Z   run-id: 22278730168
+release	Download all artifacts	2026-02-22T14:12:14.8102919Z ##[endgroup]
+release	Download all artifacts	2026-02-22T14:12:15.1230846Z Found 0 artifact(s)
+release	Download all artifacts	2026-02-22T14:12:15.1232432Z No input name, artifact-ids or pattern filtered specified, downloading all artifacts
+release	Download all artifacts	2026-02-22T14:12:15.1233454Z An extra directory with the artifact name will be created for each download
+release	Download all artifacts	2026-02-22T14:12:15.1234227Z Total of 0 artifact(s) downloaded
+release	Download all artifacts	2026-02-22T14:12:15.1239832Z Download artifact has finished successfully
+release	Prepare release files	∩╗┐2026-02-22T14:12:15.1408246Z ##[group]Run mkdir -p release
+release	Prepare release files	2026-02-22T14:12:15.1409059Z [36;1mmkdir -p release[0m
+release	Prepare release files	2026-02-22T14:12:15.1409862Z [36;1m# actions/download-artifact@v4 with no path will create directories for each artifact name[0m
+release	Prepare release files	2026-02-22T14:12:15.1410754Z [36;1mfor dir in slipstream-client-*; do[0m
+release	Prepare release files	2026-02-22T14:12:15.1411287Z [36;1m  if [ -d "$dir" ]; then[0m
+release	Prepare release files	2026-02-22T14:12:15.1412040Z [36;1m    # Get the file inside the directory and move it to release/ named as the artifact name[0m
+release	Prepare release files	2026-02-22T14:12:15.1412850Z [36;1m    mv "$dir"/* "release/$dir"[0m
+release	Prepare release files	2026-02-22T14:12:15.1413353Z [36;1m    chmod +x "release/$dir"[0m
+release	Prepare release files	2026-02-22T14:12:15.1413813Z [36;1m  fi[0m
+release	Prepare release files	2026-02-22T14:12:15.1414184Z [36;1mdone[0m
+release	Prepare release files	2026-02-22T14:12:15.1414576Z [36;1mls -la release/[0m
+release	Prepare release files	2026-02-22T14:12:15.1449349Z shell: /usr/bin/bash -e {0}
+release	Prepare release files	2026-02-22T14:12:15.1449856Z ##[endgroup]
+release	Prepare release files	2026-02-22T14:12:15.1547006Z total 8
+release	Prepare release files	2026-02-22T14:12:15.1547756Z drwxr-xr-x 2 runner runner 4096 Feb 22 14:12 .
+release	Prepare release files	2026-02-22T14:12:15.1549031Z drwxr-xr-x 3 runner runner 4096 Feb 22 14:12 ..
+release	Create or update release	∩╗┐2026-02-22T14:12:15.1639733Z ##[group]Run softprops/action-gh-release@v2
+release	Create or update release	2026-02-22T14:12:15.1640338Z with:
+release	Create or update release	2026-02-22T14:12:15.1640759Z   tag_name: slipstream-latest
+release	Create or update release	2026-02-22T14:12:15.1641274Z   name: Slipstream Client (OpenWrt musl builds)
+release	Create or update release	2026-02-22T14:12:15.1643108Z   body: Automatically built `slipstream-client` binaries for OpenWrt (musl libc).
+release	Create or update release	Statically linked ΓÇö ready to run on OpenWrt routers.
+release	Create or update release	
+release	Create or update release	| File | Architecture |
+release	Create or update release	|------|-------------|
+release	Create or update release	| `slipstream-client-linux-amd64-musl` | x86_64 |
+release	Create or update release	| `slipstream-client-linux-arm64-musl` | aarch64 (ARM64) |
+release	Create or update release	
+release	Create or update release	2026-02-22T14:12:15.1645124Z   files: release/*
+release	Create or update release	2026-02-22T14:12:15.1645514Z   prerelease: false
+release	Create or update release	2026-02-22T14:12:15.1645906Z   make_latest: true
+release	Create or update release	2026-02-22T14:12:15.1646292Z   overwrite_files: true
+release	Create or update release	2026-02-22T14:12:15.1646861Z   token: ***
+release	Create or update release	2026-02-22T14:12:15.1647321Z ##[endgroup]
+release	Create or update release	2026-02-22T14:12:15.2672604Z ≡ƒñö Pattern 'release/*' does not match any files.
+release	Create or update release	2026-02-22T14:12:15.5460303Z Found release Slipstream Client (OpenWrt musl builds) (with id=289144300)
+release	Create or update release	2026-02-22T14:12:15.7854843Z ≡ƒñö release/* does not include a valid file.
+release	Create or update release	2026-02-22T14:12:15.7862227Z Finalizing release...
+release	Create or update release	2026-02-22T14:12:15.9825062Z ≡ƒÄë Release ready at https://github.com/rooomer/passwall2-webapp/releases/tag/slipstream-latest
+release	Complete job	∩╗┐2026-02-22T14:12:15.9942305Z Cleaning up orphan processes

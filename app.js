@@ -979,7 +979,8 @@ async function slipstreamConnect() {
     if (!domain || !resolver) { log.textContent = '⚠️ Domain and Resolver are required'; return; }
     log.textContent = '🚀 Saving config and connecting...';
     try {
-        const r = await apiCall('/api/action/set_slipstream_config', 'POST', { domain, resolver, cert, congestion });
+        const set_active = document.getElementById('slipSetActive')?.checked || false;
+        const r = await apiCall('/api/action/set_slipstream_config', 'POST', { domain, resolver, cert, congestion, set_active });
         log.textContent = r.ok ? '✅ ' + r.msg : '❌ ' + r.msg;
         setTimeout(refreshSlipstream, 2000);
     } catch (e) { log.textContent = '❌ Connection failed'; }
@@ -1097,7 +1098,8 @@ async function dnsttConnect() {
     if (!domain || !pubkey) { log.textContent = '⚠️ Domain and Public Key are required'; return; }
     log.textContent = '🚀 Saving config and connecting...';
     try {
-        const r = await apiCall('/api/action/set_dnstt_config', 'POST', { domain, pubkey, resolver, listen_port, transport });
+        const set_active = document.getElementById('dnsttSetActive')?.checked || false;
+        const r = await apiCall('/api/action/set_dnstt_config', 'POST', { domain, pubkey, resolver, listen_port, transport, set_active });
         log.textContent = r.ok ? '✅ ' + r.msg : '❌ ' + r.msg;
         setTimeout(refreshDnstt, 2000);
     } catch (e) { log.textContent = '❌ Connection failed'; }
