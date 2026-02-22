@@ -1,0 +1,95 @@
+name: Build DNSTT Client (OpenWrt musl)
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 6 * * 0'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+            goarm: ""
+            artifact: dnstt-client-linux-amd64
+          - goos: linux
+            goarch: arm64
+            goarm: ""
+            artifact: dnstt-client-linux-arm64
+          - goos: linux
+            goarch: arm
+            goarm: "7"
+            artifact: dnstt-client-linux-armv7
+
+    steps:
+      - name: Checkout dnstt_xyz_app source
+        uses: actions/checkout@v4
+        with:
+          repository: dnstt-xyz/dnstt_xyz_app
+          ref: main
+          submodules: false
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+
+      - name: Build dnstt-client
+        run: |
+          cd go_src
+          CGO_ENABLED=0 GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} GOARM=${{ matrix.goarm }} \
+            go build -trimpath -ldflags="-s -w" -o ../dnstt-client ./dnstt-client/
+          cd ..
+          chmod +x dnstt-client
+          file dnstt-client
+          ls -la dnstt-client
+
+      - name: Rename artifact
+        run: mv dnstt-client ${{ matrix.artifact }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.artifact }}
+
+  release:
+    needs: [build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+
+      - name: Prepare release files
+        run: |
+          mkdir -p release
+          for dir in dnstt-client-*; do
+            if [ -d "$dir" ]; then
+              mv "$dir"/* "release/$dir"
+              chmod +x "release/$dir"
+            fi
+          done
+          ls -la release/
+
+      - name: Create or update release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: dnstt-latest
+          name: "DNSTT Client (OpenWrt builds)"
+          body: |
+            Automatically built `dnstt-client` binaries for OpenWrt.
+            Statically linked (CGO_ENABLED=0) — ready to run on OpenWrt routers.
+
+            | File | Architecture |
+            |------|-------------|
+            | `dnstt-client-linux-amd64` | x86_64 |
+            | `dnstt-client-linux-arm64` | aarch64 (ARM64) |
+            | `dnstt-client-linux-armv7` | ARMv7 (armhf/armv7l) |
+          files: release/*
+          prerelease: false
+          make_latest: false
