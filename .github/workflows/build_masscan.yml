@@ -24,8 +24,21 @@ jobs:
             make -j4 CC='gcc -static' CFLAGS='-O3' LDFLAGS='-static'
           "
 
-      - name: Upload Binary
+      - name: Zip Binary
+        run: zip -j masscan-armv7-openwrt.zip masscan/bin/masscan
+
+      - name: Upload Binary as Artifact
         uses: actions/upload-artifact@v4
         with:
           name: masscan-armv7-openwrt
           path: masscan/bin/masscan
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        if: github.ref == 'refs/heads/main'
+        with:
+          tag_name: v1.0.${{ github.run_number }}
+          name: Masscan OpenWrt ARMv7 Build ${{ github.run_number }}
+          files: masscan-armv7-openwrt.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
