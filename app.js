@@ -1,16 +1,12 @@
 /* ═══════════════════════════════════════════════════════════════
-   PassWall 2 - Telegram Mini App JavaScript (Hardened)
+   PassWall 2 - Telegram Mini App JavaScript (v2 - Full Management)
    Communicates with the OpenWrt bot via Telegram.WebApp.sendData()
-
-   Security fixes:
-     #12: All dynamic content uses textContent or escHtml (no raw innerHTML injection)
-     #15: initData validation support
    ═══════════════════════════════════════════════════════════════ */
 
 // ─── Telegram WebApp Instance ──────────────────────────────────
 const tg = window.Telegram?.WebApp;
-let configData = {};   // Data passed from the bot
-let pendingChanges = {};  // Accumulated changes to send
+let configData = {};
+let pendingChanges = {};
 
 // ─── Init ──────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
@@ -20,28 +16,30 @@ document.addEventListener('DOMContentLoaded', () => {
         tg.MainButton.setText('Apply Changes');
         tg.MainButton.hide();
         tg.MainButton.onClick(applyChanges);
-
-        // Parse initial data from URL hash or startParam
         parseInitData();
     }
-
-    // Populate DNS presets
     renderDnsPresets();
 });
 
 // ─── Parse Data from Bot ───────────────────────────────────────
 function parseInitData() {
     try {
-        // Data is passed via compact ?d= query parameter
         const params = new URLSearchParams(window.location.search);
         const dataParam = params.get('d') || params.get('data');
         if (dataParam) {
             const raw = JSON.parse(dataParam);
-            // Map compact keys to full names
             configData = {
                 running: raw.s || raw.running || false,
                 active_node: raw.n || raw.active_node || '',
-                nodes: (raw.nl || raw.nodes || []).map(n => ({ id: n.i || n.id, remark: n.r || n.remark })),
+                nodes: (raw.nl || raw.nodes || []).map(n => ({
+                    id: n.i || n.id,
+                    remark: n.r || n.remark,
+                    type: n.t || n.type || '',
+                    protocol: n.p || n.protocol || '',
+                    group: n.g || n.group || 'default',
+                    address: n.a || n.address || '',
+                    port: n.pt || n.port || '',
+                })),
                 dns: {
                     remote_dns_protocol: raw.dp || (raw.dns && raw.dns.remote_dns_protocol) || 'tcp',
                     remote_dns: raw.ds || (raw.dns && raw.dns.remote_dns) || '',
@@ -65,7 +63,6 @@ function parseInitData() {
     } catch (e) {
         console.error('Failed to parse init data:', e);
     }
-    // Always initialize UI
     populateUI(configData);
 }
 
@@ -96,24 +93,15 @@ function populateUI(data) {
     document.getElementById('dnsServer').textContent =
         dns.remote_dns_protocol === 'doh' ? (dns.remote_dns_doh || '') : (dns.remote_dns || '');
 
-    // DNS Protocol radios
     document.querySelectorAll('input[name="dns_proto"]').forEach(r => {
         r.checked = r.value === (dns.remote_dns_protocol || 'tcp');
     });
-
-    // DNS Toggles
     document.getElementById('fakeDnsToggle').checked = dns.remote_fakedns === '1';
     document.getElementById('dnsRedirectToggle').checked = dns.dns_redirect === '1';
-
-    // DNS Strategies
     document.getElementById('directStrategy').value = dns.direct_dns_query_strategy || 'UseIP';
     document.getElementById('remoteStrategy').value = dns.remote_dns_query_strategy || 'UseIPv4';
     document.getElementById('dnsDetour').value = dns.remote_dns_detour || 'remote';
-
-    // ECS
     document.getElementById('ecsInput').value = dns.remote_dns_client_ip || '';
-
-    // DNS Hosts
     document.getElementById('dnsHostsInput').value = dns.dns_hosts || '';
 
     // Nodes
@@ -134,18 +122,10 @@ function populateUI(data) {
     }));
 
     // ACL
-    renderList('aclList', data.acl || [], (r) => ({
-        name: r.remarks || r['.name'] || '?',
-        detail: `Source: ${r.sources || 'all'}`,
-        status: r.enabled === '1' ? '🟢' : '🔴'
-    }));
+    renderACL(data.acl || []);
 
-    // Shunt
-    renderList('shuntList', data.shunt_rules || [], (r) => ({
-        name: r.remarks || r['.name'] || '?',
-        detail: '',
-        status: '📌'
-    }));
+    // Shunt Rules
+    renderShuntRules(data.shunt_rules || []);
 
     // HAProxy
     renderList('haproxyList', data.haproxy || [], (c) => ({
@@ -161,11 +141,13 @@ function populateUI(data) {
         status: '🔗'
     }));
 
-    // Highlight active DNS preset
     highlightDnsPreset();
 }
 
-// ─── Render Nodes ──────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════
+//  NODE MANAGEMENT
+// ═══════════════════════════════════════════════════════════════
+
 function renderNodes(nodes, activeId) {
     const container = document.getElementById('nodeList');
     if (!nodes.length) {
@@ -175,17 +157,17 @@ function renderNodes(nodes, activeId) {
 
     container.innerHTML = '';
     nodes.forEach(n => {
-        const isActive = n.id === activeId;
+        const isActive = (n.id === activeId);
         const el = document.createElement('div');
         el.className = `node-item ${isActive ? 'active' : ''}`;
         el.dataset.id = n.id;
-        el.onclick = () => selectNode(n.id);
 
         const dot = document.createElement('div');
         dot.className = 'node-dot';
 
         const info = document.createElement('div');
         info.className = 'node-info';
+        info.onclick = () => selectNode(n.id);
 
         const name = document.createElement('div');
         name.className = 'node-name';
@@ -193,20 +175,52 @@ function renderNodes(nodes, activeId) {
 
         const meta = document.createElement('div');
         meta.className = 'node-meta';
-        meta.textContent = `${n.type || ''} ${n.protocol || ''} • ${n.group || 'default'}`;
+        meta.textContent = `${n.type || ''} ${n.protocol || ''} • ${n.group || ''}`;
+
+        const latency = document.createElement('span');
+        latency.className = 'node-latency';
+        latency.id = `lat-${n.id}`;
+        latency.textContent = '';
 
         info.appendChild(name);
         info.appendChild(meta);
         el.appendChild(dot);
         el.appendChild(info);
+        el.appendChild(latency);
 
-        // Detail button
+        // Action buttons row
+        const actions = document.createElement('div');
+        actions.className = 'node-actions';
+
+        const pingBtn = document.createElement('button');
+        pingBtn.className = 'btn btn-xs btn-info';
+        pingBtn.textContent = '📡';
+        pingBtn.title = 'Ping';
+        pingBtn.onclick = (e) => { e.stopPropagation(); pingNode(n); };
+
+        const useBtn = document.createElement('button');
+        useBtn.className = 'btn btn-xs btn-success';
+        useBtn.textContent = '✅';
+        useBtn.title = 'Use';
+        useBtn.onclick = (e) => { e.stopPropagation(); selectNode(n.id); };
+
         const detailBtn = document.createElement('button');
-        detailBtn.className = 'btn btn-sm btn-secondary node-detail-btn';
+        detailBtn.className = 'btn btn-xs btn-secondary';
         detailBtn.textContent = 'ℹ️';
-        detailBtn.title = 'Details';
-        detailBtn.onclick = (e) => { e.stopPropagation(); openNodeModal(n.id); };
-        el.appendChild(detailBtn);
+        detailBtn.title = 'Detail';
+        detailBtn.onclick = (e) => { e.stopPropagation(); openNodeModal(n); };
+
+        const delBtn = document.createElement('button');
+        delBtn.className = 'btn btn-xs btn-danger';
+        delBtn.textContent = '🗑️';
+        delBtn.title = 'Delete';
+        delBtn.onclick = (e) => { e.stopPropagation(); deleteNode(n.id, n.remark); };
+
+        actions.appendChild(pingBtn);
+        actions.appendChild(useBtn);
+        actions.appendChild(detailBtn);
+        actions.appendChild(delBtn);
+        el.appendChild(actions);
 
         container.appendChild(el);
     });
@@ -215,8 +229,8 @@ function renderNodes(nodes, activeId) {
 function filterNodes() {
     const q = document.getElementById('nodeSearch').value.toLowerCase();
     document.querySelectorAll('.node-item').forEach(el => {
-        const name = el.querySelector('.node-name').textContent.toLowerCase();
-        const meta = el.querySelector('.node-meta').textContent.toLowerCase();
+        const name = el.querySelector('.node-name')?.textContent.toLowerCase() || '';
+        const meta = el.querySelector('.node-meta')?.textContent.toLowerCase() || '';
         el.style.display = (name.includes(q) || meta.includes(q)) ? '' : 'none';
     });
 }
@@ -225,7 +239,6 @@ function selectNode(id) {
     pendingChanges.node = id;
     pendingChanges.action = 'set_node';
 
-    // Update UI
     document.querySelectorAll('.node-item').forEach(el => {
         el.classList.toggle('active', el.dataset.id === id);
     });
@@ -234,21 +247,248 @@ function selectNode(id) {
     document.getElementById('activeNode').textContent = node ? node.remark : id;
 
     showMainButton();
-    showToast('Node selected — tap Apply to save');
+    showToast('Node selected — tap Apply');
 }
 
-// ─── Render Generic Lists (XSS-safe) ──────────────────────────
+function deleteNode(id, name) {
+    if (confirm(`Delete node "${name || id}"?`)) {
+        sendToBot({ action: 'delete_node', node: id });
+        showToast('🗑️ Node deleted');
+        // Remove from local list
+        const el = document.querySelector(`.node-item[data-id="${id}"]`);
+        if (el) el.remove();
+    }
+}
+
+function pingNode(node) {
+    const latEl = document.getElementById(`lat-${node.id}`);
+    if (latEl) {
+        latEl.textContent = '...';
+        latEl.className = 'node-latency pinging';
+    }
+    sendToBot({ action: 'ping_node', address: node.address || '', port: node.port || '', node_id: node.id });
+    showToast(`📡 Pinging ${node.remark || node.address}...`);
+}
+
+function pingAllNodes() {
+    const nodes = configData.nodes || [];
+    if (!nodes.length) { showToast('No nodes'); return; }
+    nodes.forEach(n => {
+        const latEl = document.getElementById(`lat-${n.id}`);
+        if (latEl) { latEl.textContent = '...'; latEl.className = 'node-latency pinging'; }
+    });
+    sendToBot({ action: 'ping_all_nodes' });
+    showToast(`📡 Pinging ${nodes.length} nodes...`);
+}
+
+function addNodeFromUrl() {
+    const url = document.getElementById('shareUrlInput').value.trim();
+    if (!url) return;
+    sendToBot({ action: 'add_node_url', url: url });
+    document.getElementById('shareUrlInput').value = '';
+    showToast('➕ Adding node from URL...');
+}
+
+// ─── Node Detail Modal ────────────────────────────────────────
+function openNodeModal(node) {
+    const body = document.getElementById('nodeModalBody');
+    document.getElementById('nodeModalTitle').textContent = `📋 ${escHtml(node.remark || '?')}`;
+
+    body.innerHTML = '';
+    const grid = document.createElement('div');
+    grid.className = 'status-grid';
+
+    const fields = [
+        ['Name', node.remark],
+        ['Type', node.type],
+        ['Protocol', node.protocol],
+        ['Address', node.address],
+        ['Port', node.port],
+        ['Group', node.group],
+        ['ID', node.id],
+    ];
+    fields.forEach(([label, val]) => {
+        const item = document.createElement('div');
+        item.className = 'status-item';
+        const lbl = document.createElement('span');
+        lbl.className = 'status-label';
+        lbl.textContent = label;
+        const valEl = document.createElement('span');
+        valEl.className = 'status-value';
+        valEl.textContent = val || '—';
+        if (label === 'ID') valEl.style.fontSize = '0.7rem';
+        item.appendChild(lbl);
+        item.appendChild(valEl);
+        grid.appendChild(item);
+    });
+    body.appendChild(grid);
+
+    // Reset ping result
+    const pingRes = document.getElementById('nodePingResult');
+    pingRes.style.display = 'none';
+    pingRes.textContent = '';
+
+    // Wire buttons
+    document.getElementById('nodeUseBtn').onclick = () => {
+        selectNode(node.id);
+        closeNodeModal();
+    };
+    document.getElementById('nodePingBtn').onclick = () => {
+        pingRes.style.display = 'block';
+        pingRes.textContent = 'Pinging...';
+        sendToBot({ action: 'ping_node', address: node.address, port: node.port, node_id: node.id });
+    };
+    document.getElementById('nodeCopyBtn').onclick = () => {
+        sendToBot({ action: 'copy_node', node: node.id });
+        showToast('📋 Node copied');
+        closeNodeModal();
+    };
+    document.getElementById('nodeDelBtn').onclick = () => {
+        if (confirm(`Delete "${node.remark}"?`)) {
+            sendToBot({ action: 'delete_node', node: node.id });
+            showToast('🗑️ Node deleted');
+            closeNodeModal();
+        }
+    };
+
+    document.getElementById('nodeModal').style.display = 'flex';
+}
+
+function closeNodeModal() {
+    document.getElementById('nodeModal').style.display = 'none';
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  ACL MANAGEMENT
+// ═══════════════════════════════════════════════════════════════
+
+function renderACL(rules) {
+    const container = document.getElementById('aclList');
+    if (!rules.length) {
+        container.innerHTML = '<div class="empty-state">No ACL rules</div>';
+        return;
+    }
+    container.innerHTML = '';
+    rules.forEach(r => {
+        const el = document.createElement('div');
+        el.className = 'list-item list-item-interactive';
+
+        const infoDiv = document.createElement('div');
+        const nameEl = document.createElement('div');
+        nameEl.className = 'item-name';
+        nameEl.textContent = r.remarks || r['.name'] || '?';
+        infoDiv.appendChild(nameEl);
+
+        const detailEl = document.createElement('div');
+        detailEl.className = 'item-detail';
+        detailEl.textContent = `Source: ${r.sources || 'all'}`;
+        infoDiv.appendChild(detailEl);
+
+        // Toggle switch
+        const toggleLabel = document.createElement('label');
+        toggleLabel.className = 'switch switch-sm';
+        const toggleInput = document.createElement('input');
+        toggleInput.type = 'checkbox';
+        toggleInput.checked = r.enabled === '1';
+        toggleInput.onchange = () => {
+            sendToBot({ action: 'set_acl', id: r['.name'], enabled: toggleInput.checked ? '1' : '0' });
+            showToast(`ACL ${r.remarks || '?'}: ${toggleInput.checked ? 'enabled' : 'disabled'}`);
+        };
+        const slider = document.createElement('span');
+        slider.className = 'slider';
+        toggleLabel.appendChild(toggleInput);
+        toggleLabel.appendChild(slider);
+
+        el.appendChild(infoDiv);
+        el.appendChild(toggleLabel);
+        container.appendChild(el);
+    });
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  SHUNT RULES MANAGEMENT
+// ═══════════════════════════════════════════════════════════════
+
+function renderShuntRules(rules) {
+    const container = document.getElementById('shuntList');
+    if (!rules.length) {
+        container.innerHTML = '<div class="empty-state">No shunt rules</div>';
+        return;
+    }
+    container.innerHTML = '';
+    rules.forEach(r => {
+        const el = document.createElement('div');
+        el.className = 'shunt-item';
+
+        const header = document.createElement('div');
+        header.className = 'shunt-header';
+
+        const name = document.createElement('span');
+        name.className = 'shunt-name';
+        name.textContent = r.remarks || r['.name'] || '?';
+
+        const editBtn = document.createElement('button');
+        editBtn.className = 'btn btn-xs btn-primary';
+        editBtn.textContent = '✏️ Edit';
+        editBtn.onclick = () => openShuntModal(r);
+
+        header.appendChild(name);
+        header.appendChild(editBtn);
+
+        const preview = document.createElement('div');
+        preview.className = 'shunt-preview';
+        const domainCount = (r.domain_list || '').split('\n').filter(x => x.trim()).length;
+        const ipCount = (r.ip_list || '').split('\n').filter(x => x.trim()).length;
+        preview.textContent = `📂 ${domainCount} domains, 🌐 ${ipCount} IPs`;
+
+        el.appendChild(header);
+        el.appendChild(preview);
+        container.appendChild(el);
+    });
+}
+
+let currentShuntRule = null;
+
+function openShuntModal(rule) {
+    currentShuntRule = rule;
+    document.getElementById('shuntModalTitle').textContent = `📝 ${escHtml(rule.remarks || rule['.name'] || 'Rule')}`;
+    document.getElementById('shuntDomains').value = rule.domain_list || '';
+    document.getElementById('shuntIPs').value = rule.ip_list || '';
+
+    document.getElementById('shuntSaveBtn').onclick = () => {
+        const domains = document.getElementById('shuntDomains').value;
+        const ips = document.getElementById('shuntIPs').value;
+        sendToBot({
+            action: 'set_shunt_rule',
+            rule_name: rule['.name'] || '',
+            domain_list: domains,
+            ip_list: ips,
+        });
+        showToast('💾 Shunt rule saved');
+        closeShuntModal();
+    };
+
+    document.getElementById('shuntModal').style.display = 'flex';
+}
+
+function closeShuntModal() {
+    document.getElementById('shuntModal').style.display = 'none';
+    currentShuntRule = null;
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  GENERIC LIST RENDERER (XSS-SAFE)
+// ═══════════════════════════════════════════════════════════════
+
 function renderList(containerId, items, mapFn) {
     const container = document.getElementById(containerId);
     if (!items.length) {
         container.innerHTML = '<div class="empty-state">None configured</div>';
         return;
     }
-
     container.innerHTML = '';
     items.forEach(item => {
         const { name, detail, status } = mapFn(item);
-
         const el = document.createElement('div');
         el.className = 'list-item';
 
@@ -275,7 +515,10 @@ function renderList(containerId, items, mapFn) {
     });
 }
 
-// ─── DNS Presets ───────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════
+//  DNS PRESETS
+// ═══════════════════════════════════════════════════════════════
+
 const DNS_TCP_PRESETS = [
     { addr: '1.1.1.1', label: 'Cloudflare' },
     { addr: '1.1.1.2', label: 'CF-Security' },
@@ -300,7 +543,6 @@ function renderDnsPresets() {
     const proto = getCurrentProto();
     const presets = proto === 'doh' ? DNS_DOH_PRESETS : DNS_TCP_PRESETS;
     const container = document.getElementById('dnsPresetList');
-
     container.innerHTML = '';
     presets.forEach(p => {
         const chip = document.createElement('span');
@@ -310,7 +552,6 @@ function renderDnsPresets() {
         chip.onclick = () => selectDnsPreset(p.addr);
         container.appendChild(chip);
     });
-
     highlightDnsPreset();
 }
 
@@ -336,12 +577,10 @@ function selectDnsPreset(addr) {
         pendingChanges.remote_dns = addr;
     }
     pendingChanges.action = 'dns_change';
-
     document.querySelectorAll('.preset-chip').forEach(chip => {
         chip.classList.toggle('active', chip.dataset.addr === addr);
     });
     document.getElementById('dnsServer').textContent = addr;
-
     showMainButton();
     showToast('DNS server selected — tap Apply');
 }
@@ -389,7 +628,29 @@ function setDnsHosts() {
     showToast('Domain overrides updated — tap Apply');
 }
 
-// ─── Actions (Quick commands) ──────────────────────────────────
+// ═══════════════════════════════════════════════════════════════
+//  SETTINGS MANAGEMENT
+// ═══════════════════════════════════════════════════════════════
+
+function setForwarding(key, value) {
+    sendToBot({ action: 'set_forwarding', key: key, value: value });
+    showToast(`✅ ${key} → ${value}`);
+}
+
+function setDelay(key, value) {
+    sendToBot({ action: 'set_delay', key: key, value: value });
+    showToast(`✅ ${key} → ${value}`);
+}
+
+function setGlobalOpt(key, value) {
+    sendToBot({ action: 'set_global_opt', key: key, value: value });
+    showToast(`✅ ${key} → ${value}`);
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  ACTIONS / COMMANDS
+// ═══════════════════════════════════════════════════════════════
+
 function doAction(action) {
     sendToBot({ action: action });
     showToast(`${action} command sent!`);
@@ -411,16 +672,21 @@ function doPing() {
     showToast('Ping command sent');
 }
 
-// ─── Tab Switching ─────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════
+//  TAB SWITCHING
+// ═══════════════════════════════════════════════════════════════
+
 function switchTab(tabName) {
     document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
     document.querySelectorAll('.tab-content').forEach(tc => tc.classList.remove('active'));
-
-    document.querySelector(`.tab[data-tab="${tabName}"]`).classList.add('active');
-    document.getElementById(`tab-${tabName}`).classList.add('active');
+    document.querySelector(`.tab[data-tab="${tabName}"]`)?.classList.add('active');
+    document.getElementById(`tab-${tabName}`)?.classList.add('active');
 }
 
-// ─── Apply Changes via sendData ────────────────────────────────
+// ═══════════════════════════════════════════════════════════════
+//  APPLY CHANGES
+// ═══════════════════════════════════════════════════════════════
+
 function applyChanges() {
     if (Object.keys(pendingChanges).length === 0) {
         showToast('No changes to apply');
@@ -431,7 +697,6 @@ function applyChanges() {
     const changes = { ...pendingChanges };
     delete changes.action;
 
-    // For set_node, send a clean payload
     if (action === 'set_node') {
         sendToBot({ action: 'set_node', node: changes.node });
     } else if (action === 'dns_change') {
@@ -446,22 +711,22 @@ function applyChanges() {
 }
 
 function sendToBot(data) {
-    const payload = JSON.stringify(data);
+    const payload = typeof data === 'string' ? data : JSON.stringify(data);
     if (tg) {
         tg.sendData(payload);
     } else {
-        // Dev mode: log to console
         console.log('sendData:', payload);
     }
 }
 
 function showMainButton() {
-    if (tg) {
-        tg.MainButton.show();
-    }
+    if (tg) tg.MainButton.show();
 }
 
-// ─── Toast ─────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════
+//  UTILITY
+// ═══════════════════════════════════════════════════════════════
+
 function showToast(message) {
     const toast = document.getElementById('toast');
     toast.textContent = message;
@@ -469,67 +734,7 @@ function showToast(message) {
     setTimeout(() => toast.classList.remove('show'), 2500);
 }
 
-// ─── Utility ───────────────────────────────────────────────────
 function escHtml(str) {
     if (!str) return '';
     return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
-
-// ─── Forwarding Settings ───────────────────────────────────────
-function setForwarding(key, value) {
-    pendingChanges['fwd_' + key] = value;
-    sendToBot(JSON.stringify({ action: 'set_forwarding', key: key, value: value }));
-    showMainButton();
-    showToast('Forwarding: ' + key + ' = ' + value);
-}
-
-// ─── Delay Settings ───────────────────────────────────────────
-function setDelay(key, value) {
-    pendingChanges['delay_' + key] = value;
-    sendToBot(JSON.stringify({ action: 'set_delay', key: key, value: value }));
-    showMainButton();
-    showToast('Delay: ' + key + ' = ' + value);
-}
-
-// ─── Node Detail Modal ────────────────────────────────────────
-let selectedNodeId = null;
-
-function openNodeModal(nodeId) {
-    selectedNodeId = nodeId;
-    const nodes = configData.nodes || [];
-    const node = nodes.find(n => (n.id || n.i) === nodeId);
-    const body = document.getElementById('nodeModalBody');
-    if (node) {
-        body.innerHTML = `
-            <div class="status-grid">
-                <div class="status-item"><span class="status-label">Name</span><span class="status-value">${escHtml(node.remark || node.r || '?')}</span></div>
-                <div class="status-item"><span class="status-label">ID</span><span class="status-value" style="font-size:0.75rem">${escHtml(nodeId)}</span></div>
-            </div>`;
-    } else {
-        body.innerHTML = '<p>Node not found</p>';
-    }
-    document.getElementById('nodeUseBtn').onclick = () => {
-        sendToBot(JSON.stringify({ action: 'set_node', node: nodeId }));
-        showToast('✅ Node activated');
-        closeNodeModal();
-    };
-    document.getElementById('nodeCopyBtn').onclick = () => {
-        sendToBot(JSON.stringify({ action: 'copy_node', node: nodeId }));
-        showToast('📋 Node copied');
-        closeNodeModal();
-    };
-    document.getElementById('nodeDelBtn').onclick = () => {
-        if (confirm('Delete this node?')) {
-            sendToBot(JSON.stringify({ action: 'delete_node', node: nodeId }));
-            showToast('🗑️ Node deleted');
-            closeNodeModal();
-        }
-    };
-    document.getElementById('nodeModal').style.display = 'flex';
-}
-
-function closeNodeModal() {
-    document.getElementById('nodeModal').style.display = 'none';
-    selectedNodeId = null;
-}
-

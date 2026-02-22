@@ -705,6 +705,14 @@ body {
     animation: modalIn 0.3s var(--pw-transition);
 }
 
+.modal-card-lg {
+    max-height: 90vh;
+}
+
+.modal-actions {
+    border-top: 1px solid var(--pw-glass-border);
+}
+
 @keyframes modalIn {
     from {
         transform: scale(0.9);
@@ -717,23 +725,149 @@ body {
     }
 }
 
-/* ─── Node Detail Button ───────────────────────────── */
+/* ─── Node Action Buttons ──────────────────────────── */
 .node-item {
     position: relative;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
 }
 
-.node-detail-btn {
-    position: absolute;
-    right: 8px;
-    top: 50%;
-    transform: translateY(-50%);
-    padding: 4px 8px;
-    font-size: 0.8rem;
-    border-radius: 8px;
-    opacity: 0.7;
-    transition: opacity var(--pw-transition);
+.node-info {
+    flex: 1;
+    min-width: 0;
+    cursor: pointer;
 }
 
-.node-detail-btn:hover {
-    opacity: 1;
+.node-latency {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--pw-success);
+    min-width: 40px;
+    text-align: right;
+}
+
+.node-latency.pinging {
+    color: var(--pw-warning);
+    animation: pulse 1s infinite;
+}
+
+.node-latency.timeout {
+    color: var(--pw-danger);
+}
+
+@keyframes pulse {
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.4;
+    }
+}
+
+.node-actions {
+    display: flex;
+    gap: 4px;
+    width: 100%;
+    padding-top: 6px;
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+    margin-top: 4px;
+}
+
+.btn-xs {
+    padding: 4px 10px;
+    font-size: 0.7rem;
+    border-radius: 6px;
+    border: none;
+    cursor: pointer;
+    transition: all var(--pw-transition);
+}
+
+.btn-info {
+    background: rgba(116, 185, 255, 0.2);
+    color: var(--pw-info);
+}
+
+.btn-info:hover {
+    background: rgba(116, 185, 255, 0.35);
+}
+
+/* ─── Shunt Items ──────────────────────────────────── */
+.shunt-manager {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.shunt-item {
+    background: var(--pw-glass-bg);
+    border: 1px solid var(--pw-glass-border);
+    border-radius: var(--pw-radius-sm);
+    padding: 12px;
+    transition: all var(--pw-transition);
+}
+
+.shunt-item:hover {
+    border-color: var(--pw-accent-light);
+}
+
+.shunt-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.shunt-name {
+    font-weight: 600;
+    font-size: 0.95rem;
+}
+
+.shunt-preview {
+    font-size: 0.75rem;
+    color: rgba(255, 255, 255, 0.5);
+    margin-top: 4px;
+}
+
+/* ─── Interactive List Items ────────────────────────── */
+.list-item-interactive {
+    cursor: pointer;
+    transition: all var(--pw-transition);
+}
+
+.list-item-interactive:hover {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+/* ─── Header Actions ──────────────────────────────── */
+.header-actions {
+    display: flex;
+    gap: 6px;
+}
+
+.card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+/* ─── Small Switch Variant ─────────────────────────── */
+.switch-sm {
+    width: 36px;
+    height: 20px;
+    flex-shrink: 0;
+}
+
+.switch-sm .slider:before {
+    height: 14px;
+    width: 14px;
+    bottom: 3px;
+    left: 3px;
+}
+
+.switch-sm input:checked+.slider:before {
+    transform: translateX(16px);
 }

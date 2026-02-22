@@ -18,7 +18,7 @@
                 <span id="statusText">Loading...</span>
             </div>
             <h1 class="header-title">PassWall 2</h1>
-            <p class="header-subtitle">Advanced Control Panel</p>
+            <p class="header-subtitle">Control Panel</p>
         </header>
 
         <!-- Tab Navigation -->
@@ -91,20 +91,63 @@
                     </div>
                 </div>
             </div>
+
+            <!-- Global Options -->
+            <div class="card glass">
+                <div class="card-header">
+                    <h2>⚙️ Global Options</h2>
+                </div>
+                <div class="card-body">
+                    <div class="toggle-list">
+                        <div class="toggle-item">
+                            <span class="toggle-label">Localhost Proxy</span>
+                            <label class="switch">
+                                <input type="checkbox" id="localhostProxy"
+                                    onchange="setGlobalOpt('localhost_proxy', this.checked?'1':'0')">
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                        <div class="toggle-item">
+                            <span class="toggle-label">Client Proxy</span>
+                            <label class="switch">
+                                <input type="checkbox" id="clientProxy"
+                                    onchange="setGlobalOpt('client_proxy', this.checked?'1':'0')">
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </section>
 
         <!-- ═══════════ NODES TAB ═══════════ -->
         <section class="tab-content" id="tab-nodes">
             <div class="card glass">
                 <div class="card-header">
-                    <h2>🛡️ Node Selection</h2>
-                    <div class="search-box">
-                        <input type="text" id="nodeSearch" placeholder="Search nodes..." oninput="filterNodes()">
+                    <h2>🛡️ Node Management</h2>
+                    <div class="header-actions">
+                        <button class="btn btn-primary btn-sm" onclick="pingAllNodes()">📡 Ping All</button>
                     </div>
                 </div>
                 <div class="card-body">
+                    <div class="search-box">
+                        <input type="text" id="nodeSearch" placeholder="Search nodes..." oninput="filterNodes()">
+                    </div>
                     <div class="node-list" id="nodeList">
                         <div class="empty-state">No nodes loaded</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Add Node from Share URL -->
+            <div class="card glass">
+                <div class="card-header">
+                    <h2>➕ Add Node</h2>
+                </div>
+                <div class="card-body">
+                    <div class="custom-input-group">
+                        <input type="text" id="shareUrlInput" placeholder="vless://... or vmess://... or ss://...">
+                        <button class="btn btn-success btn-sm" onclick="addNodeFromUrl()">Add</button>
                     </div>
                 </div>
             </div>
@@ -238,7 +281,7 @@
         <section class="tab-content" id="tab-rules">
             <div class="card glass">
                 <div class="card-header">
-                    <h2>🚦 Access Control List (ACL)</h2>
+                    <h2>🚦 Access Control (ACL)</h2>
                 </div>
                 <div class="card-body">
                     <div id="aclList" class="item-list">
@@ -247,12 +290,13 @@
                 </div>
             </div>
 
+            <!-- Shunt Rules with expandable editing -->
             <div class="card glass">
                 <div class="card-header">
                     <h2>📝 Shunt / Routing Rules</h2>
                 </div>
                 <div class="card-body">
-                    <div id="shuntList" class="item-list">
+                    <div id="shuntList" class="shunt-manager">
                         <div class="empty-state">No shunt rules</div>
                     </div>
                 </div>
@@ -337,17 +381,7 @@
                 </div>
             </div>
 
-            <div class="card glass">
-                <div class="card-header">
-                    <h2>🧹 Maintenance</h2>
-                </div>
-                <div class="card-body">
-                    <button class="btn btn-danger full-width" onclick="doAction('flush_sets')">
-                        Clear IPSET / NFTSET Cache
-                    </button>
-                </div>
-            </div>
-
+            <!-- Forwarding Settings -->
             <div class="card glass">
                 <div class="card-header">
                     <h2>🔀 Forwarding Settings</h2>
@@ -376,20 +410,27 @@
                                 <span class="slider"></span>
                             </label>
                         </div>
-                    </div>
-                    <div class="status-grid" style="margin-top:8px">
-                        <div class="status-item">
-                            <span class="status-label">TCP Redir Ports</span>
-                            <span class="status-value" id="tcpRedirPorts">—</span>
+                        <div class="toggle-item">
+                            <span class="toggle-label">Sniffing</span>
+                            <label class="switch">
+                                <input type="checkbox" id="sniffToggle"
+                                    onchange="setForwarding('sniffing', this.checked?'1':'0')">
+                                <span class="slider"></span>
+                            </label>
                         </div>
-                        <div class="status-item">
-                            <span class="status-label">UDP Redir Ports</span>
-                            <span class="status-value" id="udpRedirPorts">—</span>
+                        <div class="toggle-item">
+                            <span class="toggle-label">Route Only</span>
+                            <label class="switch">
+                                <input type="checkbox" id="routeOnlyToggle"
+                                    onchange="setForwarding('route_only', this.checked?'1':'0')">
+                                <span class="slider"></span>
+                            </label>
                         </div>
                     </div>
                 </div>
             </div>
 
+            <!-- Delay Settings -->
             <div class="card glass">
                 <div class="card-header">
                     <h2>⏱️ Delay Settings</h2>
@@ -408,6 +449,7 @@
                     <div class="select-group">
                         <label>Delay Start (seconds)</label>
                         <select id="delayStart" onchange="setDelay('start_delay', this.value)">
+                            <option value="1">1</option>
                             <option value="30">30</option>
                             <option value="60">60</option>
                             <option value="120">120</option>
@@ -416,24 +458,64 @@
                     </div>
                 </div>
             </div>
+
+            <div class="card glass">
+                <div class="card-header">
+                    <h2>🧹 Maintenance</h2>
+                </div>
+                <div class="card-body">
+                    <button class="btn btn-danger full-width" onclick="doAction('flush_sets')">
+                        Clear IPSET / NFTSET Cache
+                    </button>
+                </div>
+            </div>
         </section>
 
         <!-- ═══════════ NODE DETAIL MODAL ═══════════ -->
         <div class="modal-overlay" id="nodeModal" style="display:none">
             <div class="card glass modal-card">
                 <div class="card-header">
-                    <h2>📋 Node Detail</h2>
+                    <h2 id="nodeModalTitle">📋 Node Detail</h2>
                     <button class="btn btn-sm btn-secondary" onclick="closeNodeModal()">✕</button>
                 </div>
                 <div class="card-body" id="nodeModalBody">
                     <!-- Populated dynamically -->
                 </div>
-                <div class="card-body">
+                <div class="card-body modal-actions">
                     <div class="control-grid">
                         <button class="btn btn-success" id="nodeUseBtn">✅ Use</button>
+                        <button class="btn btn-info" id="nodePingBtn">📡 Ping</button>
+                    </div>
+                    <div class="control-grid" style="margin-top:8px">
                         <button class="btn btn-warning" id="nodeCopyBtn">📋 Copy</button>
                         <button class="btn btn-danger" id="nodeDelBtn">🗑️ Delete</button>
                     </div>
+                    <div id="nodePingResult" class="result-box" style="margin-top:8px;display:none"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ═══════════ SHUNT DETAIL MODAL ═══════════ -->
+        <div class="modal-overlay" id="shuntModal" style="display:none">
+            <div class="card glass modal-card modal-card-lg">
+                <div class="card-header">
+                    <h2 id="shuntModalTitle">📝 Rule Editor</h2>
+                    <button class="btn btn-sm btn-secondary" onclick="closeShuntModal()">✕</button>
+                </div>
+                <div class="card-body" id="shuntModalBody">
+                    <div class="custom-input-group">
+                        <label>Domain List</label>
+                        <textarea id="shuntDomains" rows="6"
+                            placeholder="geosite:youtube&#10;domain:google.com&#10;full:www.example.com"></textarea>
+                    </div>
+                    <div class="custom-input-group">
+                        <label>IP List</label>
+                        <textarea id="shuntIPs" rows="4"
+                            placeholder="geoip:us&#10;10.0.0.0/8&#10;192.168.0.0/16"></textarea>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <button class="btn btn-success full-width" id="shuntSaveBtn">💾 Save Rule</button>
                 </div>
             </div>
         </div>
