@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>PassWall 2 Panel</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+</head>
+<body>
+    <div id="app">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-status">
+                <div class="status-dot" id="statusDot"></div>
+                <span id="statusText">Loading...</span>
+            </div>
+            <h1 class="header-title">PassWall 2</h1>
+            <p class="header-subtitle">Advanced Control Panel</p>
+        </header>
+
+        <!-- Tab Navigation -->
+        <nav class="tab-bar">
+            <button class="tab active" data-tab="dashboard" onclick="switchTab('dashboard')">
+                <span class="tab-icon">🏠</span>
+                <span class="tab-label">Home</span>
+            </button>
+            <button class="tab" data-tab="nodes" onclick="switchTab('nodes')">
+                <span class="tab-icon">🛡️</span>
+                <span class="tab-label">Nodes</span>
+            </button>
+            <button class="tab" data-tab="dns" onclick="switchTab('dns')">
+                <span class="tab-icon">📡</span>
+                <span class="tab-label">DNS</span>
+            </button>
+            <button class="tab" data-tab="rules" onclick="switchTab('rules')">
+                <span class="tab-icon">🌐</span>
+                <span class="tab-label">Rules</span>
+            </button>
+            <button class="tab" data-tab="tools" onclick="switchTab('tools')">
+                <span class="tab-icon">🔧</span>
+                <span class="tab-label">Tools</span>
+            </button>
+        </nav>
+
+        <!-- ═══════════ DASHBOARD TAB ═══════════ -->
+        <section class="tab-content active" id="tab-dashboard">
+            <div class="card glass">
+                <div class="card-header">
+                    <h2>⚡ Quick Controls</h2>
+                </div>
+                <div class="card-body">
+                    <div class="control-grid">
+                        <button class="btn btn-success btn-lg" onclick="doAction('start')">
+                            <span class="btn-icon">▶️</span> Start
+                        </button>
+                        <button class="btn btn-danger btn-lg" onclick="doAction('stop')">
+                            <span class="btn-icon">⏹️</span> Stop
+                        </button>
+                        <button class="btn btn-warning btn-lg full-width" onclick="doAction('restart')">
+                            <span class="btn-icon">🔁</span> Restart PassWall
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card glass">
+                <div class="card-header">
+                    <h2>📊 Status Overview</h2>
+                </div>
+                <div class="card-body">
+                    <div class="status-grid">
+                        <div class="status-item">
+                            <span class="status-label">Service</span>
+                            <span class="status-value" id="svcStatus">—</span>
+                        </div>
+                        <div class="status-item">
+                            <span class="status-label">Active Node</span>
+                            <span class="status-value" id="activeNode">—</span>
+                        </div>
+                        <div class="status-item">
+                            <span class="status-label">DNS Protocol</span>
+                            <span class="status-value" id="dnsProto">—</span>
+                        </div>
+                        <div class="status-item">
+                            <span class="status-label">DNS Server</span>
+                            <span class="status-value" id="dnsServer">—</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ═══════════ NODES TAB ═══════════ -->
+        <section class="tab-content" id="tab-nodes">
+            <div class="card glass">
+                <div class="card-header">
+                    <h2>🛡️ Node Selection</h2>
+                    <div class="search-box">
+                        <input type="text" id="nodeSearch" placeholder="Search nodes..." oninput="filterNodes()">
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="node-list" id="nodeList">
+                        <div class="empty-state">No nodes loaded</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card glass">
+                <div class="card-header">
+                    <h2>🧦 SOCKS Servers</h2>
+                </div>
+                <div class="card-body">
+                    <div id="socksList" class="item-list">
+                        <div class="empty-state">No SOCKS ports</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card glass">
+                <div class="card-header">
+                    <h2>📥 Server-Side (Inbound)</h2>
+                </div>
+                <div class="card-body">
+                    <div id="serverList" class="item-list">
+                        <div class="empty-state">No inbound servers</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ═══════════ DNS TAB ═══════════ -->
+        <section class="tab-content" id="tab-dns">
+            <div class="card glass">
+                <div class="card-header">
+                    <h2>📶 DNS Protocol</h2>
+                </div>
+                <div class="card-body">
+                    <div class="radio-group" id="dnsProtoGroup">
+                        <label class="radio-card">
+                            <input type="radio" name="dns_proto" value="tcp" onchange="setDnsProto('tcp')">
+                            <span class="radio-label">TCP</span>
+                        </label>
+                        <label class="radio-card">
+                            <input type="radio" name="dns_proto" value="udp" onchange="setDnsProto('udp')">
+                            <span class="radio-label">UDP</span>
+                        </label>
+                        <label class="radio-card">
+                            <input type="radio" name="dns_proto" value="doh" onchange="setDnsProto('doh')">
+                            <span class="radio-label">DoH</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card glass" id="dnsServerCard">
+                <div class="card-header">
+                    <h2>🌐 DNS Server</h2>
+                </div>
+                <div class="card-body">
+                    <div class="preset-list" id="dnsPresetList"></div>
+                    <div class="custom-input-group">
+                        <input type="text" id="customDns" placeholder="Custom IP or DoH URL...">
+                        <button class="btn btn-primary btn-sm" onclick="setCustomDns()">Set</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card glass">
+                <div class="card-header">
+                    <h2>⚙️ DNS Options</h2>
+                </div>
+                <div class="card-body">
+                    <div class="toggle-list">
+                        <div class="toggle-item">
+                            <span class="toggle-label">FakeDNS</span>
+                            <label class="switch">
+                                <input type="checkbox" id="fakeDnsToggle" onchange="toggleDnsOpt('remote_fakedns', this.checked)">
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                        <div class="toggle-item">
+                            <span class="toggle-label">DNS Redirect (Port 53 Hijack)</span>
+                            <label class="switch">
+                                <input type="checkbox" id="dnsRedirectToggle" onchange="toggleDnsOpt('dns_redirect', this.checked)">
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="select-group">
+                        <label>Direct Query Strategy</label>
+                        <select id="directStrategy" onchange="setDnsOpt('direct_dns_query_strategy', this.value)">
+                            <option value="UseIP">UseIP</option>
+                            <option value="UseIPv4">UseIPv4</option>
+                            <option value="UseIPv6">UseIPv6</option>
+                        </select>
+                    </div>
+
+                    <div class="select-group">
+                        <label>Remote Query Strategy</label>
+                        <select id="remoteStrategy" onchange="setDnsOpt('remote_dns_query_strategy', this.value)">
+                            <option value="UseIP">UseIP</option>
+                            <option value="UseIPv4">UseIPv4</option>
+                            <option value="UseIPv6">UseIPv6</option>
+                        </select>
+                    </div>
+
+                    <div class="select-group">
+                        <label>Remote DNS Outbound</label>
+                        <select id="dnsDetour" onchange="setDnsOpt('remote_dns_detour', this.value)">
+                            <option value="remote">Remote</option>
+                            <option value="direct">Direct</option>
+                        </select>
+                    </div>
+
+                    <div class="custom-input-group">
+                        <label>EDNS Client Subnet IP</label>
+                        <input type="text" id="ecsInput" placeholder="Public IP for ECS...">
+                        <button class="btn btn-primary btn-sm" onclick="setEcs()">Set</button>
+                    </div>
+
+                    <div class="custom-input-group">
+                        <label>Domain Overrides</label>
+                        <textarea id="dnsHostsInput" rows="3" placeholder="domain1 ip1&#10;domain2 ip2"></textarea>
+                        <button class="btn btn-primary btn-sm" onclick="setDnsHosts()">Save</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ═══════════ RULES TAB ═══════════ -->
+        <section class="tab-content" id="tab-rules">
+            <div class="card glass">
+                <div class="card-header">
+                    <h2>🚦 Access Control List (ACL)</h2>
+                </div>
+                <div class="card-body">
+                    <div id="aclList" class="item-list">
+                        <div class="empty-state">No ACL rules</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card glass">
+                <div class="card-header">
+                    <h2>📝 Shunt / Routing Rules</h2>
+                </div>
+                <div class="card-body">
+                    <div id="shuntList" class="item-list">
+                        <div class="empty-state">No shunt rules</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card glass">
+                <div class="card-header">
+                    <h2>⚖️ HAProxy Load Balancing</h2>
+                </div>
+                <div class="card-body">
+                    <div id="haproxyList" class="item-list">
+                        <div class="empty-state">No HAProxy configs</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ═══════════ TOOLS TAB ═══════════ -->
+        <section class="tab-content" id="tab-tools">
+            <div class="card glass">
+                <div class="card-header">
+                    <h2>🔄 Subscriptions</h2>
+                </div>
+                <div class="card-body">
+                    <button class="btn btn-primary full-width" onclick="doAction('sub_update')">
+                        Update All Subscriptions
+                    </button>
+                    <div id="subList" class="item-list" style="margin-top:12px">
+                        <div class="empty-state">No subscriptions</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card glass">
+                <div class="card-header">
+                    <h2>🌍 GeoView Lookup</h2>
+                </div>
+                <div class="card-body">
+                    <div class="custom-input-group">
+                        <input type="text" id="geoInput" placeholder="Enter IP or domain...">
+                        <button class="btn btn-primary btn-sm" onclick="doGeoLookup()">Lookup</button>
+                    </div>
+                    <pre class="result-box" id="geoResult"></pre>
+                </div>
+            </div>
+
+            <div class="card glass">
+                <div class="card-header">
+                    <h2>🚀 Ping Test</h2>
+                </div>
+                <div class="card-body">
+                    <div class="custom-input-group">
+                        <input type="text" id="pingInput" placeholder="Address to ping...">
+                        <button class="btn btn-primary btn-sm" onclick="doPing()">Ping</button>
+                    </div>
+                    <pre class="result-box" id="pingResult"></pre>
+                </div>
+            </div>
+
+            <div class="card glass">
+                <div class="card-header">
+                    <h2>📄 Logs</h2>
+                </div>
+                <div class="card-body">
+                    <div class="control-grid">
+                        <button class="btn btn-secondary" onclick="doAction('get_log')">Client Log</button>
+                        <button class="btn btn-secondary" onclick="doAction('get_server_log')">Server Log</button>
+                    </div>
+                    <pre class="result-box log-box" id="logResult"></pre>
+                </div>
+            </div>
+
+            <div class="card glass">
+                <div class="card-header">
+                    <h2>📦 Backup & Restore</h2>
+                </div>
+                <div class="card-body">
+                    <div class="control-grid">
+                        <button class="btn btn-primary" onclick="doAction('backup')">⬇️ Download Backup</button>
+                        <button class="btn btn-warning" onclick="doAction('update_rules')">🔄 Update GeoIP/Site</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card glass">
+                <div class="card-header">
+                    <h2>🧹 Maintenance</h2>
+                </div>
+                <div class="card-body">
+                    <button class="btn btn-danger full-width" onclick="doAction('flush_sets')">
+                        Clear IPSET / NFTSET Cache
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Toast / Notification -->
+        <div class="toast" id="toast"></div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
