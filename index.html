@@ -438,7 +438,7 @@
                 </div>
             </div>
 
-            <!-- DNS Tunnel Scanner -->
+            <!-- DNS Tunnel Scanner v2 -->
             <div class="card glass">
                 <div class="card-header">
                     <h2>📡 DNS Tunnel Scanner</h2>
@@ -447,57 +447,214 @@
                     </div>
                 </div>
                 <div class="card-body">
+                    <!-- Configuration -->
                     <div class="form-grid">
                         <label>Target Domain</label>
                         <input type="text" id="scanDomain" placeholder="s.example.com">
+
                         <label>CIDR Source</label>
                         <div style="display:flex;gap:6px;">
                             <select id="scanCidrSelect" style="flex:1;" onchange="onCidrSourceChange()">
                                 <option value="__custom__">✏️ Custom (enter below)</option>
                             </select>
-                            <button class="btn btn-secondary btn-sm" onclick="openCidrModal()">📂 Manage Lists</button>
+                            <button class="btn btn-secondary btn-sm" onclick="openCidrModal()">📂 Lists</button>
                         </div>
+
                         <label>IPs / CIDRs</label>
-                        <textarea id="scanCidrText" rows="4"
+                        <textarea id="scanCidrText" rows="3"
                             placeholder="1.1.1.0/24&#10;8.8.8.0/24&#10;# one per line"></textarea>
-                        <label>Concurrency</label>
-                        <input type="number" id="scanConcurrency" value="200" min="1" max="2000">
-                        <label>Timeout (s)</label>
-                        <input type="number" id="scanTimeout" value="2" min="1" max="30" step="0.5">
+
+                        <label>Scan Preset</label>
+                        <select id="scanPreset">
+                            <option value="fast">⚡ Fast (500 workers, 1.5s timeout)</option>
+                            <option value="normal" selected>⚙️ Normal (200 workers, 2.5s)</option>
+                            <option value="deep">🔬 Deep (50 workers, 5s timeout)</option>
+                        </select>
+
+                        <label>DNS Type</label>
+                        <select id="scanDnsType">
+                            <option value="A" selected>A (IPv4)</option>
+                            <option value="AAAA">AAAA (IPv6)</option>
+                            <option value="MX">MX (Mail)</option>
+                            <option value="TXT">TXT</option>
+                            <option value="NS">NS</option>
+                        </select>
+
+                        <label>Random Sample</label>
+                        <div style="display:flex;gap:6px;align-items:center;">
+                            <input type="number" id="scanSampleSize" value="0" min="0" max="100000"
+                                placeholder="0 = scan all" style="flex:1;">
+                            <span style="font-size:0.75rem;opacity:0.6;">0 = scan all</span>
+                        </div>
                     </div>
+
+                    <!-- Advanced Options -->
+                    <div style="display:flex;gap:10px;align-items:center;margin:10px 0;flex-wrap:wrap;">
+                        <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:0.85rem;">
+                            <input type="checkbox" id="scanRandomSub" checked> Random Subdomain
+                        </label>
+                        <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:0.85rem;">
+                            <input type="checkbox" id="scanAutoRetry"> Auto-Retry Failed
+                        </label>
+                        <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:0.85rem;">
+                            <input type="checkbox" id="scanCheckNs"> NS Delegation
+                        </label>
+                        <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:0.85rem;">
+                            <input type="checkbox" id="scanBlacklistEnabled"> Blacklist
+                        </label>
+                        <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:0.85rem;">
+                            <input type="checkbox" id="scanNotifySound"> 🔔 Sound
+                        </label>
+                    </div>
+
+                    <!-- Multi-Domain -->
+                    <div class="form-grid" style="margin-bottom:8px;">
+                        <label>Extra Domains <span
+                                style="font-size:0.7rem;opacity:0.5;">(comma-separated)</span></label>
+                        <input type="text" id="scanExtraDomains" placeholder="d2.example.com, d3.example.com">
+                    </div>
+
+                    <!-- Controls -->
                     <div class="control-grid" style="margin-top:10px;">
-                        <button class="btn btn-success" id="btnStartScan" onclick="startDnsScan()">🚀 Start
-                            Scan</button>
+                        <button class="btn btn-success" id="btnStartScan" onclick="startDnsScan()">🚀 Start</button>
+                        <button class="btn btn-warning" id="btnPauseScan" onclick="pauseDnsScan()" disabled>⏸️
+                            Pause</button>
+                        <button class="btn btn-primary" id="btnResumeScan" onclick="resumeDnsScan()" disabled>▶️
+                            Resume</button>
+                        <button class="btn btn-secondary" id="btnShuffleScan" onclick="shuffleDnsScan()" disabled>🔀
+                            Shuffle</button>
                         <button class="btn btn-danger" id="btnStopScan" onclick="stopDnsScan()" disabled>⛔ Stop</button>
+                        <button class="btn btn-secondary" id="btnExportScan" onclick="exportDnsScan()" disabled>📥
+                            Export</button>
                     </div>
-                    <!-- Progress -->
-                    <div id="scanProgress" style="margin-top:12px;display:none;">
-                        <div style="display:flex;justify-content:space-between;font-size:0.85rem;margin-bottom:4px;">
-                            <span id="scanProgressText">0 / 0</span>
-                            <span id="scanFoundText">Found: 0</span>
-                            <span id="scanElapsed">0s</span>
-                        </div>
-                        <div style="background:var(--glass-border);border-radius:6px;overflow:hidden;height:10px;">
-                            <div id="scanProgressBar"
-                                style="height:100%;background:var(--accent);width:0%;transition:width 0.4s;"></div>
-                        </div>
+                    <div class="control-grid" style="margin-top:6px;">
+                        <button class="btn btn-secondary btn-sm" onclick="saveProject()">💾 Save</button>
+                        <button class="btn btn-secondary btn-sm" onclick="resumeProject()">📂 Resume</button>
+                        <button class="btn btn-secondary btn-sm" onclick="viewScanHistory()">📊 History</button>
+                        <button class="btn btn-secondary btn-sm" onclick="openBlacklistModal()">🚫 Blacklist</button>
+                        <button class="btn btn-secondary btn-sm" onclick="batchApplyAll()">📦 Batch Apply</button>
                     </div>
+                    <div style="margin-top:4px;font-size:0.68rem;opacity:0.4;">⌨️ S=Start P=Pause R=Resume E=Export
+                        X=Stop</div>
+
+                    <!-- Stats Bar -->
+                    <div id="scanStatsBar" style="margin-top:12px;display:none;">
+                        <div
+                            style="display:grid;grid-template-columns:repeat(auto-fit,minmax(80px,1fr));gap:8px;font-size:0.8rem;">
+                            <div class="scan-stat-box">
+                                <span style="opacity:0.6;">Scanned</span>
+                                <span id="statScanned" style="font-weight:700;">0</span>
+                            </div>
+                            <div class="scan-stat-box">
+                                <span style="opacity:0.6;">Total</span>
+                                <span id="statTotal" style="font-weight:700;">0</span>
+                            </div>
+                            <div class="scan-stat-box">
+                                <span style="color:var(--success);">✅ Found</span>
+                                <span id="statFound" style="font-weight:700;color:var(--success);">0</span>
+                            </div>
+                            <div class="scan-stat-box">
+                                <span style="color:var(--danger);">❌ Failed</span>
+                                <span id="statFailed" style="font-weight:700;color:var(--danger);">0</span>
+                            </div>
+                            <div class="scan-stat-box">
+                                <span style="opacity:0.6;">Speed</span>
+                                <span id="statSpeed" style="font-weight:700;">0 /s</span>
+                            </div>
+                            <div class="scan-stat-box">
+                                <span style="opacity:0.6;">ETA</span>
+                                <span id="statEta" style="font-weight:700;">—</span>
+                            </div>
+                        </div>
+                        <!-- Progress Bar -->
+                        <div style="margin-top:8px;">
+                            <div
+                                style="display:flex;justify-content:space-between;font-size:0.78rem;margin-bottom:3px;">
+                                <span id="scanProgressText">0 / 0</span>
+                                <span id="scanElapsed">0s</span>
+                            </div>
+                            <div style="background:var(--glass-border);border-radius:6px;overflow:hidden;height:10px;">
+                                <div id="scanProgressBar"
+                                    style="height:100%;background:var(--accent);width:0%;transition:width 0.4s;"></div>
+                            </div>
+                        </div>
+                        <!-- Latency Heatmap -->
+                        <div id="latencyHeatmap"
+                            style="margin-top:6px;height:8px;border-radius:4px;overflow:hidden;display:flex;"></div>
+                        <!-- RCODE Stats -->
+                        <div id="rcodeStats"
+                            style="margin-top:6px;font-size:0.75rem;display:flex;gap:8px;flex-wrap:wrap;"></div>
+                    </div>
+
                     <!-- Results Table -->
-                    <div id="scanResultsWrap" style="margin-top:12px;max-height:300px;overflow-y:auto;display:none;">
-                        <table class="data-table" style="width:100%;font-size:0.85rem;">
+                    <div id="scanResultsWrap" style="margin-top:12px;max-height:350px;overflow-y:auto;display:none;">
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                            <span style="font-size:0.85rem;font-weight:600;">🏆 Found IPs</span>
+                            <span id="scanResultCount" style="font-size:0.75rem;opacity:0.6;"></span>
+                        </div>
+                        <table class="data-table" style="width:100%;font-size:0.82rem;">
                             <thead>
                                 <tr>
+                                    <th><input type="checkbox" id="selectAllScan" onchange="toggleSelectAll(this)"></th>
                                     <th>#</th>
-                                    <th>IP</th>
+                                    <th>IP Address</th>
                                     <th>Latency</th>
+                                    <th>RCODE</th>
+                                    <th>Tags</th>
                                     <th>Action</th>
                                 </tr>
                             </thead>
                             <tbody id="scanResultsBody"></tbody>
                         </table>
                     </div>
+
+                    <!-- Live Log -->
+                    <div id="scanLogWrap" style="margin-top:12px;display:none;">
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+                            <span style="font-size:0.85rem;font-weight:600;">📋 Scan Log</span>
+                            <button class="btn btn-secondary btn-sm" onclick="clearScanLog()"
+                                style="font-size:0.7rem;">Clear</button>
+                        </div>
+                        <pre class="result-box" id="scanLogPanel"
+                            style="max-height:150px;overflow-y:auto;font-size:0.75rem;white-space:pre-wrap;"></pre>
+                    </div>
+
+                    <!-- Scan History Panel -->
+                    <div id="scanHistoryPanel" style="margin-top:12px;display:none;">
+                        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+                            <span style="font-size:0.85rem;font-weight:600;">📊 Scan History</span>
+                            <button class="btn btn-secondary btn-sm"
+                                onclick="document.getElementById('scanHistoryPanel').style.display='none'"
+                                style="font-size:0.7rem;">Close</button>
+                        </div>
+                        <div id="scanHistoryContent" style="font-size:0.8rem;"></div>
+                    </div>
                 </div>
             </div>
+
+            <!-- Blacklist Modal -->
+            <div id="blacklistModal" class="modal-overlay" style="display:none;"
+                onclick="if(event.target===this)closeBlacklistModal()">
+                <div class="modal-content glass" style="max-width:500px;width:90%;">
+                    <h3 style="margin:0 0 12px;">🚫 IP Blacklist</h3>
+                    <div id="blacklistList"
+                        style="max-height:200px;overflow-y:auto;margin-bottom:12px;font-size:0.85rem;"></div>
+                    <hr style="border-color:var(--glass-border);margin:10px 0;">
+                    <div class="form-grid">
+                        <label>Add IP or CIDR</label>
+                        <div style="display:flex;gap:6px;">
+                            <input type="text" id="blacklistInput" placeholder="1.2.3.4 or 1.2.0.0/16" style="flex:1;">
+                            <button class="btn btn-success btn-sm" onclick="addToBlacklist()">Add</button>
+                        </div>
+                    </div>
+                    <div style="display:flex;gap:8px;margin-top:10px;">
+                        <button class="btn btn-danger btn-sm" onclick="clearBlacklist()">🗑 Clear All</button>
+                        <button class="btn btn-secondary btn-sm" onclick="closeBlacklistModal()">✖ Close</button>
+                    </div>
+                </div>
+            </div>
+
+
 
             <!-- CIDR Manager Modal -->
             <div id="cidrModal" class="modal-overlay" style="display:none;"

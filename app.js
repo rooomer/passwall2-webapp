@@ -1198,84 +1198,387 @@ function escHtml(str) {
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  DNS TUNNEL SCANNER
+//  DNS TUNNEL SCANNER v2 (FULL – all 48 features)
 // ═══════════════════════════════════════════════════════════════
 let _scanPollTimer = null;
+let _lastLogLen = 0;
+let _scanNotifyCtx = null; // AudioContext for sound
+
+function _scanBtnState(state) {
+    const ids = ['btnStartScan', 'btnStopScan', 'btnPauseScan', 'btnResumeScan', 'btnShuffleScan', 'btnExportScan'];
+    const map = {
+        idle: [false, true, true, true, true, false],
+        scanning: [true, false, false, true, true, true],
+        paused: [true, false, true, false, false, true],
+    };
+    const flags = map[state] || map.idle;
+    ids.forEach((id, i) => { const el = document.getElementById(id); if (el) el.disabled = flags[i]; });
+}
 
 async function startDnsScan() {
     const domain = document.getElementById('scanDomain').value.trim();
     const cidr_text = document.getElementById('scanCidrText').value.trim();
-    const concurrency = parseInt(document.getElementById('scanConcurrency').value) || 200;
-    const timeout = parseFloat(document.getElementById('scanTimeout').value) || 2;
-    if (!domain) { toast('⚠️ Target Domain is required'); return; }
-    if (!cidr_text) { toast('⚠️ Enter IPs/CIDRs or select a CIDR list'); return; }
+    const preset = document.getElementById('scanPreset').value;
+    const dns_type = document.getElementById('scanDnsType').value;
+    const sample_size = parseInt(document.getElementById('scanSampleSize').value) || 0;
+    const random_subdomain = document.getElementById('scanRandomSub').checked;
+    const auto_retry = document.getElementById('scanAutoRetry').checked;
+    const check_ns = document.getElementById('scanCheckNs').checked;
+    const blacklist_enabled = document.getElementById('scanBlacklistEnabled').checked;
+    const domains = (document.getElementById('scanExtraDomains').value || '').trim();
 
-    document.getElementById('btnStartScan').disabled = true;
-    document.getElementById('btnStopScan').disabled = false;
-    document.getElementById('scanProgress').style.display = 'block';
+    if (!domain) { showToast('⚠️ Target Domain is required'); return; }
+    if (!cidr_text) { showToast('⚠️ Enter IPs/CIDRs or select a CIDR list'); return; }
+
+    _scanBtnState('scanning');
+    _lastLogLen = 0;
+    document.getElementById('scanStatsBar').style.display = 'block';
     document.getElementById('scanResultsWrap').style.display = 'block';
+    document.getElementById('scanLogWrap').style.display = 'block';
     document.getElementById('scanResultsBody').innerHTML = '';
+    document.getElementById('scanLogPanel').textContent = '';
+    document.getElementById('scannerStatus').textContent = 'starting…';
 
     try {
-        const r = await apiCall('/api/action/dns_scanner_start', 'POST', { domain, cidr_text, concurrency, timeout });
-        toast(r.ok ? '🚀 ' + r.msg : '❌ ' + r.msg);
+        const r = await apiCall('/api/action/dns_scanner_start', 'POST', {
+            domain, cidr_text, preset, dns_type, sample_size, random_subdomain,
+            auto_retry, check_ns, blacklist_enabled, domains
+        });
+        showToast(r.ok ? '🚀 ' + r.msg : '❌ ' + r.msg);
         if (r.ok) {
-            _scanPollTimer = setInterval(pollScanStatus, 1500);
+            _scanPollTimer = setInterval(pollScanStatus, 1200);
+        } else {
+            _scanBtnState('idle');
         }
-    } catch (e) { toast('❌ Failed to start scan'); }
+    } catch (e) { showToast('❌ Failed to start scan'); _scanBtnState('idle'); }
 }
 
 async function stopDnsScan() {
     try {
         await apiCall('/api/action/dns_scanner_stop', 'POST', {});
-        toast('⛔ Stop signal sent');
+        showToast('⛔ Stop signal sent');
     } catch (e) { /* ignore */ }
 }
 
+async function pauseDnsScan() {
+    try {
+        const r = await apiCall('/api/action/dns_scanner_pause', 'POST', {});
+        if (r.ok) { _scanBtnState('paused'); showToast('⏸️ Scan paused'); }
+    } catch (e) { /* ignore */ }
+}
+
+async function resumeDnsScan() {
+    try {
+        const r = await apiCall('/api/action/dns_scanner_resume', 'POST', {});
+        if (r.ok) { _scanBtnState('scanning'); showToast('▶️ Scan resumed'); }
+    } catch (e) { /* ignore */ }
+}
+
+async function shuffleDnsScan() {
+    try {
+        const r = await apiCall('/api/action/dns_scanner_shuffle', 'POST', {});
+        showToast(r.ok ? '🔀 ' + r.msg : '❌ ' + (r.msg || 'Shuffle failed'));
+    } catch (e) { /* ignore */ }
+}
+
+async function exportDnsScan() {
+    try {
+        const r = await apiCall('/api/action/dns_scanner_export', 'POST', {});
+        const blob = new Blob([JSON.stringify(r, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a'); a.href = url;
+        a.download = `dns_scan_${r.scan_date || 'results'}.json`.replace(/[: ]/g, '_');
+        a.click(); URL.revokeObjectURL(url);
+        showToast('📥 Results exported');
+    } catch (e) { showToast('❌ Export failed'); }
+}
+
+function clearScanLog() {
+    document.getElementById('scanLogPanel').textContent = '';
+    _lastLogLen = 0;
+}
+
+function _fmtEta(secs) {
+    if (!secs || secs <= 0) return '—';
+    if (secs < 60) return secs + 's';
+    if (secs < 3600) return Math.floor(secs / 60) + 'm ' + (secs % 60) + 's';
+    return Math.floor(secs / 3600) + 'h ' + Math.floor((secs % 3600) / 60) + 'm';
+}
+
+// ── Notification Sound ─────────────────────────────────────────
+let _prevFoundCount = 0;
+function _playNotifySound() {
+    try {
+        if (!_scanNotifyCtx) _scanNotifyCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = _scanNotifyCtx.createOscillator();
+        const gain = _scanNotifyCtx.createGain();
+        osc.connect(gain); gain.connect(_scanNotifyCtx.destination);
+        osc.frequency.value = 880; gain.gain.value = 0.15;
+        osc.start(); osc.stop(_scanNotifyCtx.currentTime + 0.15);
+    } catch (e) { }
+}
+
+// ── Latency Heatmap ────────────────────────────────────────────
+function _renderHeatmap(found) {
+    const el = document.getElementById('latencyHeatmap');
+    if (!el || !found || !found.length) return;
+    const maxMs = Math.max(...found.map(r => r.ms || 0), 1);
+    el.innerHTML = found.slice(0, 100).map(r => {
+        const ratio = Math.min((r.ms || 0) / maxMs, 1);
+        const hue = 120 - (ratio * 120); // green → red
+        return `<div style="flex:1;background:hsl(${hue},80%,50%)" title="${r.ip}: ${r.ms}ms"></div>`;
+    }).join('');
+}
+
+// ── Poll Status ────────────────────────────────────────────────
 async function pollScanStatus() {
     try {
         const s = await apiCall('/api/action/dns_scanner_status', 'POST', {});
-        const pct = s.total > 0 ? Math.round((s.scanned / s.total) * 100) : 0;
-        document.getElementById('scanProgressBar').style.width = pct + '%';
-        document.getElementById('scanProgressText').textContent = `${s.scanned} / ${s.total}`;
-        document.getElementById('scanFoundText').textContent = `Found: ${s.found_count}`;
-        document.getElementById('scanElapsed').textContent = s.elapsed_s + 's';
-        document.getElementById('scannerStatus').textContent = s.running ? 'scanning…' : 'idle';
+        const pct = s.total > 0 ? ((s.scanned / s.total) * 100).toFixed(1) : 0;
 
-        // render results
+        // Stats
+        document.getElementById('statScanned').textContent = s.scanned.toLocaleString();
+        document.getElementById('statTotal').textContent = s.total.toLocaleString();
+        document.getElementById('statFound').textContent = s.found_count;
+        document.getElementById('statFailed').textContent = s.failed.toLocaleString();
+        document.getElementById('statSpeed').textContent = s.ips_per_sec + ' /s';
+        document.getElementById('statEta').textContent = _fmtEta(s.eta_s);
+
+        // Progress
+        document.getElementById('scanProgressBar').style.width = pct + '%';
+        document.getElementById('scanProgressText').textContent =
+            `${s.scanned.toLocaleString()} / ${s.total.toLocaleString()} (${pct}%)`;
+        document.getElementById('scanElapsed').textContent = s.elapsed_s + 's';
+
+        // Status badge
+        const badge = document.getElementById('scannerStatus');
+        if (s.paused) { badge.textContent = '⏸️ paused'; }
+        else if (s.running) { badge.textContent = '🟢 scanning'; }
+        else { badge.textContent = 'idle'; }
+
+        // RCODE stats
+        const rcDiv = document.getElementById('rcodeStats');
+        if (s.rcode_stats) {
+            rcDiv.innerHTML = Object.entries(s.rcode_stats).map(([k, v]) =>
+                `<span class="rcode-badge ${k.toLowerCase()}">${k}: ${v}</span>`
+            ).join(' ');
+        }
+
+        // Notification sound
+        if (document.getElementById('scanNotifySound').checked && s.found_count > _prevFoundCount) {
+            _playNotifySound();
+        }
+        _prevFoundCount = s.found_count;
+
+        // Results count
+        document.getElementById('scanResultCount').textContent = `${s.found_count} found`;
+
+        // Render results table (sorted by latency)
         const tbody = document.getElementById('scanResultsBody');
-        const sorted = (s.found || []).sort((a, b) => a.ms - b.ms);
+        const sorted = (s.found || []).sort((a, b) => (a.ms || 9999) - (b.ms || 9999));
+        const top10ips = new Set((s.top10 || []).map(r => r.ip));
+
         tbody.innerHTML = sorted.map((r, i) => {
             const cls = r.ms < 100 ? 'lat-fast' : r.ms < 300 ? 'lat-mid' : 'lat-slow';
-            return `<tr>
+            const isTop = top10ips.has(r.ip);
+            const rowCls = isTop && i < 10 ? 'scan-result-top' : '';
+            const rcodeCls = (r.rcode_name || '').toLowerCase();
+            let tags = '';
+            if (r.has_edns) tags += '<span class="tag-badge edns">EDNS</span>';
+            if (r.has_ns) tags += '<span class="tag-badge ns-ok">NS-OK</span>';
+            if (isTop && i < 10) tags += '<span class="tag-badge top10">★ TOP</span>';
+
+            return `<tr class="${rowCls}">
+                <td><input type="checkbox" class="scan-select-cb" data-ip="${r.ip}"></td>
                 <td>${i + 1}</td>
                 <td>${escHtml(r.ip)}</td>
                 <td class="${cls}">${r.ms}ms</td>
+                <td><span class="rcode-badge ${rcodeCls}">${r.rcode_name || '?'}</span></td>
+                <td>${tags}</td>
                 <td>
-                    <button class="btn btn-xs btn-success" onclick="applyScanIp('${r.ip}','slip')">→ Slip</button>
-                    <button class="btn btn-xs btn-primary" onclick="applyScanIp('${r.ip}','dnstt')">→ DNSTT</button>
+                    <button class="copy-ip-btn" onclick="navigator.clipboard.writeText('${r.ip}');showToast('📋 Copied')">📋</button>
+                    <button class="btn btn-xs btn-success" onclick="applyScanIp('${r.ip}','slip')">→Slip</button>
+                    <button class="btn btn-xs btn-primary" onclick="applyScanIp('${r.ip}','dnstt')">→DNSTT</button>
+                    <button class="btn btn-xs btn-danger" onclick="blacklistIp('${r.ip}')">🚫</button>
                 </td>
             </tr>`;
         }).join('');
 
+        // Latency heatmap
+        _renderHeatmap(sorted);
+
+        // Log panel (append new entries only)
+        if (s.log && s.log.length > _lastLogLen) {
+            const panel = document.getElementById('scanLogPanel');
+            const newEntries = s.log.slice(_lastLogLen);
+            newEntries.forEach(e => {
+                panel.textContent += `[${e.t}] ${e.msg}\n`;
+            });
+            _lastLogLen = s.log.length;
+            panel.scrollTop = panel.scrollHeight;
+        }
+
+        // State transitions
+        if (s.paused) { _scanBtnState('paused'); }
+        else if (s.running) { _scanBtnState('scanning'); }
+
         if (!s.running) {
             clearInterval(_scanPollTimer);
             _scanPollTimer = null;
-            document.getElementById('btnStartScan').disabled = false;
-            document.getElementById('btnStopScan').disabled = true;
-            toast('✅ Scan finished – found ' + s.found_count + ' DNS servers');
+            _scanBtnState('idle');
+            showToast('✅ Scan finished – found ' + s.found_count + ' DNS servers');
+            if (document.getElementById('scanNotifySound').checked) _playNotifySound();
         }
     } catch (e) { /* keep polling */ }
 }
 
 function applyScanIp(ip, target) {
     if (target === 'slip') {
-        document.getElementById('slipResolver').value = ip + ':53';
-        toast('✅ Applied ' + ip + ' to Slipstream resolver');
+        const el = document.getElementById('slipResolver');
+        if (el) { el.value = ip + ':53'; }
+        showToast('✅ Applied ' + ip + ' to Slipstream resolver');
     } else {
-        document.getElementById('dnsttResolver').value = ip + ':53';
-        toast('✅ Applied ' + ip + ' to DNSTT resolver');
+        const el = document.getElementById('dnsttResolver');
+        if (el) { el.value = ip + ':53'; }
+        showToast('✅ Applied ' + ip + ' to DNSTT resolver');
     }
+}
+
+// ── Toggle Select All ─────────────────────────────────────────
+function toggleSelectAll(master) {
+    document.querySelectorAll('.scan-select-cb').forEach(cb => cb.checked = master.checked);
+}
+
+// ── Batch Apply ─────────────────────────────────────────────
+function batchApplyAll() {
+    const selected = [...document.querySelectorAll('.scan-select-cb:checked')].map(cb => cb.dataset.ip);
+    if (!selected.length) { showToast('⚠️ Select IPs first using the checkboxes'); return; }
+    const joined = selected.join(', ');
+    navigator.clipboard.writeText(joined);
+    showToast(`📦 Copied ${selected.length} IPs: ${joined.slice(0, 60)}…`);
+}
+
+// ── Save / Resume Project ─────────────────────────────────────
+async function saveProject() {
+    try {
+        const r = await apiCall('/api/action/dns_scanner_save_project', 'POST', {});
+        showToast(r.ok ? '💾 ' + r.msg : '❌ ' + (r.msg || 'Nothing to save'));
+    } catch (e) { showToast('❌ Save failed'); }
+}
+
+async function resumeProject() {
+    try {
+        const proj = await apiCall('/api/action/dns_scanner_load_project', 'POST', {});
+        if (proj && proj.remaining_ips && proj.remaining_ips.length) {
+            document.getElementById('scanDomain').value = proj.domain || '';
+            document.getElementById('scanCidrText').value = proj.remaining_ips.join('\n');
+            if (proj.preset) document.getElementById('scanPreset').value = proj.preset;
+            if (proj.dns_type) document.getElementById('scanDnsType').value = proj.dns_type;
+            showToast(`📂 Loaded project: ${proj.remaining_count} IPs, domain=${proj.domain}`);
+        } else {
+            showToast('📂 No saved project found');
+        }
+    } catch (e) { showToast('❌ Load failed'); }
+}
+
+// ── Scan History ──────────────────────────────────────────────
+async function viewScanHistory() {
+    const panel = document.getElementById('scanHistoryPanel');
+    panel.style.display = 'block';
+    try {
+        const r = await apiCall('/api/action/dns_scanner_history', 'POST', {});
+        const arr = r.history || [];
+        if (!arr.length) {
+            document.getElementById('scanHistoryContent').innerHTML = '<em>No scan history yet</em>';
+            return;
+        }
+        document.getElementById('scanHistoryContent').innerHTML = arr.reverse().map(h =>
+            `<div style="padding:6px 0;border-bottom:1px solid var(--glass-border);">
+                <strong>${h.date}</strong> — ${h.domain}<br>
+                <span style="opacity:0.7;">
+                    ${h.dns_type} | ${h.preset} | Scanned: ${h.scanned} | Found: ${h.found} |
+                    Time: ${h.elapsed_s}s | Top: ${(h.top3 || []).join(', ')}
+                </span>
+            </div>`
+        ).join('');
+    } catch (e) { document.getElementById('scanHistoryContent').innerHTML = '<em>Error loading history</em>'; }
+}
+
+// ── Blacklist ─────────────────────────────────────────────────
+function openBlacklistModal() {
+    document.getElementById('blacklistModal').style.display = 'flex';
+    loadBlacklist();
+}
+
+function closeBlacklistModal() {
+    document.getElementById('blacklistModal').style.display = 'none';
+}
+
+async function loadBlacklist() {
+    try {
+        const r = await apiCall('/api/action/dns_scanner_get_blacklist', 'POST', {});
+        const list = r.blacklist || [];
+        document.getElementById('blacklistList').innerHTML = list.length
+            ? list.map(ip => `<div style="padding:3px 0;">${escHtml(ip)}</div>`).join('')
+            : '<em>Blacklist is empty</em>';
+    } catch (e) { /* ignore */ }
+}
+
+async function addToBlacklist() {
+    const ip = document.getElementById('blacklistInput').value.trim();
+    if (!ip) return;
+    try {
+        const r = await apiCall('/api/action/dns_scanner_add_blacklist', 'POST', { ip });
+        showToast(r.ok ? '🚫 ' + r.msg : '❌ ' + r.msg);
+        document.getElementById('blacklistInput').value = '';
+        loadBlacklist();
+    } catch (e) { showToast('❌ Failed'); }
+}
+
+async function blacklistIp(ip) {
+    try {
+        const r = await apiCall('/api/action/dns_scanner_add_blacklist', 'POST', { ip });
+        showToast(r.ok ? '🚫 Blacklisted ' + ip : '❌ ' + r.msg);
+    } catch (e) { showToast('❌ Failed'); }
+}
+
+async function clearBlacklist() {
+    try {
+        const r = await apiCall('/api/action/dns_scanner_clear_blacklist', 'POST', {});
+        showToast(r.ok ? '🗑 ' + r.msg : '❌ ' + r.msg);
+        loadBlacklist();
+    } catch (e) { showToast('❌ Failed'); }
+}
+
+// ── Domain Caching (auto-load last domain) ────────────────────
+async function _loadLastDomain() {
+    try {
+        const r = await apiCall('/api/action/dns_scanner_last_domain', 'POST', {});
+        if (r.domain) {
+            const el = document.getElementById('scanDomain');
+            if (el && !el.value) el.value = r.domain;
+        }
+    } catch (e) { /* ignore */ }
+}
+
+// ── Keyboard Shortcuts ────────────────────────────────────────
+document.addEventListener('keydown', function (e) {
+    // Ignore if user is typing in an input/textarea/select
+    if (['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName)) return;
+    switch (e.key.toLowerCase()) {
+        case 's': startDnsScan(); break;
+        case 'p': pauseDnsScan(); break;
+        case 'r': resumeDnsScan(); break;
+        case 'e': exportDnsScan(); break;
+        case 'x': stopDnsScan(); break;
+    }
+});
+
+// Auto-load last domain on page ready
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', _loadLastDomain);
+} else {
+    _loadLastDomain();
 }
 
 // ═══════════════════════════════════════════════════════════════
