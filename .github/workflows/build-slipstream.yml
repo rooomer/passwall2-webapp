@@ -57,8 +57,10 @@ jobs:
               # Explicitly pass --target to force Cargo to separate host/target build contexts
               cargo build --target ${{ matrix.target }} --release -p slipstream-client
               
-              # Copy artifact out
+              # Copy artifact out and fix permissions so GitHub Actions can upload it
               cp target/${{ matrix.target }}/release/slipstream-client /workspace/${{ matrix.artifact }}
+              chown -R 1001:1001 /workspace/${{ matrix.artifact }} || true
+              chmod 777 /workspace/${{ matrix.artifact }}
             '
 
       - name: Upload artifact
