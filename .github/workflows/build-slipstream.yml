@@ -31,14 +31,26 @@ jobs:
       - name: Install cross
         run: cargo install cross --git https://github.com/cross-rs/cross
 
-      - name: Install musl tools (x86_64)
-        if: matrix.target == 'x86_64-unknown-linux-musl'
-        run: sudo apt-get update && sudo apt-get install -y musl-tools
+      - name: Create Cross.toml for musl OpenSSL
+        run: |
+          cat > Cross.toml << 'EOF'
+          [target.x86_64-unknown-linux-musl]
+          pre-build = [
+            "apt-get update && apt-get install -y cmake perl pkg-config musl-tools"
+          ]
+
+          [target.aarch64-unknown-linux-musl]
+          pre-build = [
+            "dpkg --add-architecture arm64 || true",
+            "apt-get update && apt-get install -y cmake perl pkg-config"
+          ]
+          EOF
 
       - name: Build slipstream-client
-        run: cross build --release --target ${{ matrix.target }} -p slipstream-client
+        run: cross build --release --target ${{ matrix.target }} -p slipstream-client --features openssl-vendored
         env:
           CROSS_CONTAINER_OPTS: "--platform linux/amd64"
+          OPENSSL_STATIC: "1"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -82,3 +94,4 @@ jobs:
           files: release/*
           prerelease: false
           make_latest: true
+
