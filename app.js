@@ -1638,8 +1638,8 @@ async function renderCidrModal() {
     }
     c.innerHTML = _cidrCache.map(l => `
         <div class="cidr-item">
-            <span><strong>${escHtml(l.name)}</strong> — ${l.cidr_count} ranges</span>
-            <button class="btn btn-xs btn-danger" onclick="deleteCidrList('${escHtml(l.name)}')">🗑</button>
+            <span class="cidr-item-name" onclick="selectCidrFromModal('${escHtml(l.name)}')"><strong>${escHtml(l.name)}</strong> — ${l.cidr_count} ranges</span>
+            <button class="btn btn-xs btn-danger" onclick="event.stopPropagation(); deleteCidrList('${escHtml(l.name)}')">🗑</button>
         </div>
     `).join('');
 }
@@ -1664,6 +1664,20 @@ async function deleteCidrList(name) {
         toast(r.ok ? '✅ ' + r.msg : '❌ ' + r.msg);
         await renderCidrModal();
     } catch (e) { toast('❌ Delete failed'); }
+}
+
+async function selectCidrFromModal(name) {
+    try {
+        const r = await apiCall('/api/action/get_cidr_content', 'POST', { name });
+        const ta = document.getElementById('scanCidrText');
+        ta.value = r.content || '';
+        ta.disabled = true;
+        // Also set the dropdown to match
+        const sel = document.getElementById('scanCidrSelect');
+        sel.value = name;
+        closeCidrModal();
+        showToast('✅ Loaded: ' + name);
+    } catch (e) { showToast('❌ Failed to load list'); }
 }
 
 // Load CIDR lists on page load

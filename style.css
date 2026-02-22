@@ -1132,6 +1132,18 @@ body {
     padding: 6px 8px;
     border-bottom: 1px solid var(--glass-border, #333);
     font-size: .85rem;
+    transition: background .15s;
+}
+
+.cidr-item .cidr-item-name {
+    cursor: pointer;
+    flex: 1;
+    padding: 4px 0;
+}
+
+.cidr-item .cidr-item-name:hover {
+    color: var(--accent, #4fc3f7);
+    text-decoration: underline;
 }
 
 .cidr-item:last-child {
