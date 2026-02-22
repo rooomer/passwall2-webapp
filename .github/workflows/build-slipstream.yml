@@ -38,11 +38,17 @@ jobs:
             -v "${{ github.workspace }}:/workspace" \
             -w /workspace \
             alpine:edge sh -ex -c '
-              apk add --no-cache curl gcc g++ musl-dev cmake make perl \
+              apk add --no-cache gcc g++ musl-dev cmake make perl \
                 openssl-dev openssl-libs-static git bash pkgconf linux-headers
 
-              curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
-              source $HOME/.cargo/env
+              # Install Rust: rustup for amd64/arm64, Alpine package for armv7
+              if command -v curl > /dev/null 2>&1 || apk add --no-cache curl; then true; fi
+              if curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal 2>/dev/null; then
+                source $HOME/.cargo/env
+              else
+                echo "rustup not available for this arch, using Alpine Rust package"
+                apk add --no-cache rust cargo
+              fi
 
               export OPENSSL_STATIC=1
 
