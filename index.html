@@ -139,14 +139,16 @@
                 </div>
             </div>
 
-            <!-- Add Node from Share URL -->
+            <!-- Add Node from Share URL (Multi-line) -->
             <div class="card glass">
                 <div class="card-header">
                     <h2>➕ Add Node</h2>
                 </div>
                 <div class="card-body">
                     <div class="custom-input-group">
-                        <input type="text" id="shareUrlInput" placeholder="vless://... or vmess://... or ss://...">
+                        <label>Paste share links (one per line)</label>
+                        <textarea id="shareUrlInput" rows="3"
+                            placeholder="vless://...&#10;vmess://...&#10;ss://..."></textarea>
                         <button class="btn btn-success btn-sm" onclick="addNodeFromUrl()">Add</button>
                     </div>
                 </div>
@@ -473,7 +475,7 @@
 
         <!-- ═══════════ NODE DETAIL MODAL ═══════════ -->
         <div class="modal-overlay" id="nodeModal" style="display:none">
-            <div class="card glass modal-card">
+            <div class="card glass modal-card modal-card-lg">
                 <div class="card-header">
                     <h2 id="nodeModalTitle">📋 Node Detail</h2>
                     <button class="btn btn-sm btn-secondary" onclick="closeNodeModal()">✕</button>
@@ -487,10 +489,27 @@
                         <button class="btn btn-info" id="nodePingBtn">📡 Ping</button>
                     </div>
                     <div class="control-grid" style="margin-top:8px">
+                        <button class="btn btn-primary" id="nodeEditBtn">✏️ Edit</button>
                         <button class="btn btn-warning" id="nodeCopyBtn">📋 Copy</button>
                         <button class="btn btn-danger" id="nodeDelBtn">🗑️ Delete</button>
                     </div>
                     <div id="nodePingResult" class="result-box" style="margin-top:8px;display:none"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ═══════════ NODE EDIT MODAL ═══════════ -->
+        <div class="modal-overlay" id="nodeEditModal" style="display:none">
+            <div class="card glass modal-card modal-card-lg">
+                <div class="card-header">
+                    <h2 id="nodeEditTitle">✏️ Edit Node</h2>
+                    <button class="btn btn-sm btn-secondary" onclick="closeNodeEditModal()">✕</button>
+                </div>
+                <div class="card-body" id="nodeEditBody" style="max-height:60vh;overflow-y:auto">
+                    <!-- Populated dynamically -->
+                </div>
+                <div class="card-body">
+                    <button class="btn btn-success full-width" id="nodeEditSaveBtn">💾 Save Node</button>
                 </div>
             </div>
         </div>
@@ -502,7 +521,39 @@
                     <h2 id="shuntModalTitle">📝 Rule Editor</h2>
                     <button class="btn btn-sm btn-secondary" onclick="closeShuntModal()">✕</button>
                 </div>
-                <div class="card-body" id="shuntModalBody">
+                <div class="card-body" id="shuntModalBody" style="max-height:60vh;overflow-y:auto">
+                    <div class="custom-input-group">
+                        <label>Remarks</label>
+                        <input type="text" id="shuntRemarks">
+                    </div>
+                    <div class="custom-input-group">
+                        <label>Protocol</label>
+                        <input type="text" id="shuntProtocol" placeholder="http, tls, bittorrent (comma-separated)">
+                    </div>
+                    <div class="custom-input-group">
+                        <label>Inbound Tag</label>
+                        <input type="text" id="shuntInbound" placeholder="tproxy, socks (comma-separated)">
+                    </div>
+                    <div class="select-group">
+                        <label>Network</label>
+                        <select id="shuntNetwork">
+                            <option value="tcp,udp">TCP UDP</option>
+                            <option value="tcp">TCP</option>
+                            <option value="udp">UDP</option>
+                        </select>
+                    </div>
+                    <div class="custom-input-group">
+                        <label>Source</label>
+                        <input type="text" id="shuntSource" placeholder="192.168.1.0/24, geoip:private">
+                    </div>
+                    <div class="custom-input-group">
+                        <label>Source Port</label>
+                        <input type="text" id="shuntSourcePort" placeholder="e.g. 80,443">
+                    </div>
+                    <div class="custom-input-group">
+                        <label>Port</label>
+                        <input type="text" id="shuntPort" placeholder="e.g. 80,443,8080-8090">
+                    </div>
                     <div class="custom-input-group">
                         <label>Domain List</label>
                         <textarea id="shuntDomains" rows="6"

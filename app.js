@@ -200,7 +200,7 @@ function renderNodes(nodes, activeId) {
 
         const info = document.createElement('div');
         info.className = 'node-info';
-        info.onclick = () => selectNode(n.id);
+        info.onclick = () => openNodeModal(n);
 
         const name = document.createElement('div');
         name.className = 'node-name';
@@ -208,7 +208,10 @@ function renderNodes(nodes, activeId) {
 
         const meta = document.createElement('div');
         meta.className = 'node-meta';
-        meta.textContent = `${n.type || ''} ${n.protocol || ''} • ${n.group || ''}`;
+        const addr = n.address || '';
+        const port = n.port || '';
+        const addrStr = addr ? `${addr}${port ? ':' + port : ''}` : '';
+        meta.textContent = `${n.type || ''} ${n.protocol || ''} ${addrStr ? '• ' + addrStr : ''}`;
 
         const latency = document.createElement('span');
         latency.className = 'node-latency';
@@ -227,10 +230,10 @@ function renderNodes(nodes, activeId) {
         const pingBtn = makeBtn('📡', 'btn-info', 'Ping', () => pingNode(n));
         const tcpBtn = makeBtn('🔌', 'btn-warning', 'TCPing', () => tcpingNode(n));
         const useBtn = makeBtn('✅', 'btn-success', 'Use', () => selectNode(n.id));
-        const detBtn = makeBtn('ℹ️', 'btn-secondary', 'Detail', () => openNodeModal(n));
+        const editBtn = makeBtn('✏️', 'btn-primary', 'Edit', () => openNodeEditModal(n));
         const delBtn = makeBtn('🗑️', 'btn-danger', 'Delete', () => deleteNode(n.id, n.remark));
 
-        [pingBtn, tcpBtn, useBtn, detBtn, delBtn].forEach(b => actions.appendChild(b));
+        [pingBtn, tcpBtn, useBtn, editBtn, delBtn].forEach(b => actions.appendChild(b));
         el.appendChild(actions);
         container.appendChild(el);
     });
@@ -288,66 +291,89 @@ async function deleteNode(id, name) {
     } catch (e) { }
 }
 
-async function pingNode(node) {
-    const latEl = document.getElementById(`lat-${node.id}`);
-    if (latEl) { latEl.textContent = '...'; latEl.className = 'node-latency pinging'; }
-    try {
-        const r = await apiCall('/api/action/ping', 'POST', { address: node.address });
-        if (latEl) {
-            latEl.textContent = r.ok ? `${r.ms}ms` : '✕';
-            latEl.className = `node-latency ${r.ok ? '' : 'timeout'}`;
+function latencyClass(ms) {
+    const n = parseFloat(ms);
+    if (!n || n <= 0) return 'latency-bad';
+    if (n < 100) return 'latency-good';
+    if (n < 200) return 'latency-ok';
+    return 'latency-slow';
+}
+
+function pingNode(node) {
+    const el = document.getElementById(`lat-${node.id}`);
+    if (el) { el.textContent = '⏳'; el.className = 'node-latency'; }
+    apiCall('/api/action/ping', 'POST', { address: node.address }).then(r => {
+        if (el) {
+            if (r.ok) {
+                el.textContent = `${r.ms}ms`;
+                el.className = `node-latency ${latencyClass(r.ms)}`;
+            } else {
+                el.textContent = '❌';
+                el.className = 'node-latency latency-bad';
+            }
         }
-    } catch (e) {
-        if (latEl) { latEl.textContent = '✕'; latEl.className = 'node-latency timeout'; }
-    }
+    }).catch(() => { if (el) { el.textContent = '❌'; el.className = 'node-latency latency-bad'; } });
 }
 
 async function tcpingNode(node) {
-    const latEl = document.getElementById(`lat-${node.id}`);
-    if (latEl) { latEl.textContent = '...'; latEl.className = 'node-latency pinging'; }
-    try {
-        const r = await apiCall('/api/action/tcping', 'POST', { address: node.address, port: node.port || '443' });
-        if (latEl) {
-            latEl.textContent = r.ok ? `${r.ms}ms` : '✕';
-            latEl.className = `node-latency ${r.ok ? '' : 'timeout'}`;
-        }
-    } catch (e) {
-        if (latEl) { latEl.textContent = '✕'; latEl.className = 'node-latency timeout'; }
-    }
-}
-
-async function pingAllNodes() {
-    if (!API_URL) { showToast('API not connected'); return; }
-    showToast('📡 Pinging all nodes...');
-    // Set all to "..."
-    (configData.nodes || []).forEach(n => {
-        const el = document.getElementById(`lat-${n.id}`);
-        if (el) { el.textContent = '...'; el.className = 'node-latency pinging'; }
-    });
-    try {
-        const r = await apiCall('/api/action/ping_all', 'POST', {});
-        (r.results || []).forEach(nr => {
-            const el = document.getElementById(`lat-${nr.id}`);
-            if (el) {
-                el.textContent = nr.ok ? `${nr.ms}ms` : '✕';
-                el.className = `node-latency ${nr.ok ? '' : 'timeout'}`;
+    const el = document.getElementById(`lat-${node.id}`);
+    if (el) { el.textContent = '⏳'; el.className = 'node-latency'; }
+    apiCall('/api/action/tcping', 'POST', { address: node.address, port: node.port || '443' }).then(r => {
+        if (el) {
+            if (r.ok) {
+                el.textContent = `${r.ms}ms`;
+                el.className = `node-latency ${latencyClass(r.ms)}`;
+            } else {
+                el.textContent = '❌';
+                el.className = 'node-latency latency-bad';
             }
-        });
-        showToast('✅ Ping All complete!');
-    } catch (e) { showToast('❌ Ping All failed'); }
+        }
+    }).catch(() => { if (el) { el.textContent = '❌'; el.className = 'node-latency latency-bad'; } });
 }
 
-function addNodeFromUrl() {
-    const url = document.getElementById('shareUrlInput').value.trim();
-    if (!url) return;
-    // This uses old sendData since add_node_url is a one-shot
-    if (API_URL) {
-        apiCall('/api/action/add_node_url', 'POST', { url }).then(r => {
-            showToast(r.ok ? '➕ Node added!' : '❌ Failed');
-            document.getElementById('shareUrlInput').value = '';
-            loadConfig(); // Reload to show new node
-        }).catch(() => { });
+function pingAllNodes() {
+    showToast('📡 Pinging all nodes...');
+    // Set all to loading
+    document.querySelectorAll('.node-latency').forEach(el => {
+        el.textContent = '⏳'; el.className = 'node-latency';
+    });
+    apiCall('/api/action/ping_all', 'POST', {}).then(r => {
+        if (r.results) {
+            r.results.forEach(res => {
+                const el = document.getElementById(`lat-${res.id}`);
+                if (el) {
+                    if (res.ok) {
+                        el.textContent = `${res.ms}ms`;
+                        el.className = `node-latency ${latencyClass(res.ms)}`;
+                    } else {
+                        el.textContent = '❌';
+                        el.className = 'node-latency latency-bad';
+                    }
+                }
+            });
+            showToast(`✅ Pinged ${r.results.length} nodes`);
+        }
+    }).catch(() => showToast('❌ Ping all failed'));
+}
+
+async function addNodeFromUrl() {
+    const raw = document.getElementById('shareUrlInput').value.trim();
+    if (!raw) return;
+    // Support multi-line paste — one URL per line
+    const urls = raw.split('\n').map(s => s.trim()).filter(s => s && s.includes('://'));
+    if (!urls.length) { showToast('❌ No valid URLs'); return; }
+    if (!API_URL) return;
+    let added = 0, failed = 0;
+    showToast(`➕ Adding ${urls.length} node(s)...`);
+    for (const url of urls) {
+        try {
+            const r = await apiCall('/api/action/add_node_url', 'POST', { url });
+            if (r.ok) added++; else failed++;
+        } catch { failed++; }
     }
+    document.getElementById('shareUrlInput').value = '';
+    showToast(`✅ ${added} added${failed ? `, ❌ ${failed} failed` : ''}`);
+    loadConfig();
 }
 
 // ─── Node Detail Modal (with both ping types) ─────────────────
@@ -356,15 +382,35 @@ function openNodeModal(node) {
     document.getElementById('nodeModalTitle').textContent = `📋 ${escHtml(node.remark || '?')}`;
     body.innerHTML = '';
 
+    // Show ALL fields from the node (full UCI data)
     const grid = document.createElement('div');
     grid.className = 'status-grid';
-    [['Name', node.remark], ['Type', node.type], ['Protocol', node.protocol],
-    ['Address', node.address], ['Port', node.port], ['Group', node.group], ['ID', node.id]
-    ].forEach(([label, val]) => {
+    // Priority fields first, then all others
+    const priorityKeys = ['remark', 'type', 'protocol', 'address', 'port', 'group',
+        'uuid', 'password', 'transport', 'tls', 'tls_serverName', 'security',
+        'encryption', 'flow', 'reality', 'reality_publicKey'];
+    const skipKeys = new Set(['.name', '.type', 'id', 'remarks']);
+    const shown = new Set();
+
+    const addField = (label, val) => {
+        if (!val && val !== '0') return;
         const item = document.createElement('div');
         item.className = 'status-item';
-        item.innerHTML = `<span class="status-label">${label}</span><span class="status-value">${escHtml(val || '—')}</span>`;
+        item.innerHTML = `<span class="status-label">${escHtml(label)}</span><span class="status-value" style="word-break:break-all">${escHtml(String(val))}</span>`;
         grid.appendChild(item);
+    };
+
+    // Show priority fields first
+    priorityKeys.forEach(key => {
+        if (node[key]) { addField(key, node[key]); shown.add(key); }
+    });
+    addField('ID', node.id); shown.add('id');
+
+    // Show remaining fields
+    Object.keys(node).forEach(key => {
+        if (!shown.has(key) && !skipKeys.has(key)) {
+            addField(key, node[key]);
+        }
     });
     body.appendChild(grid);
 
@@ -379,11 +425,14 @@ function openNodeModal(node) {
             const r = await apiCall('/api/action/ping_node', 'POST', {
                 address: node.address, port: node.port, node_id: node.id
             });
-            pingRes.textContent =
-                `ICMP:    ${r.icmp_ms ? r.icmp_ms + ' ms' : '❌ timeout'}\n` +
-                `TCPing:  ${r.tcp_ms ? r.tcp_ms + ' ms' : '❌ timeout'}`;
+            const icmpCls = r.icmp_ms ? latencyClass(r.icmp_ms) : '';
+            const tcpCls = r.tcp_ms ? latencyClass(r.tcp_ms) : '';
+            pingRes.innerHTML =
+                `ICMP:   <span class="${icmpCls}">${r.icmp_ms ? r.icmp_ms + ' ms' : '❌ timeout'}</span>\n` +
+                `TCPing: <span class="${tcpCls}">${r.tcp_ms ? r.tcp_ms + ' ms' : '❌ timeout'}</span>`;
         } catch (e) { pingRes.textContent = '❌ Test failed'; }
     };
+    document.getElementById('nodeEditBtn').onclick = () => { closeNodeModal(); openNodeEditModal(node); };
     document.getElementById('nodeCopyBtn').onclick = async () => {
         try {
             const r = await apiCall('/api/action/copy_node', 'POST', { node: node.id });
@@ -402,6 +451,106 @@ function openNodeModal(node) {
     document.getElementById('nodeModal').style.display = 'flex';
 }
 function closeNodeModal() { document.getElementById('nodeModal').style.display = 'none'; }
+
+// ─── Node Edit Modal ───────────────────────────────────────────
+let currentEditNode = null;
+const NODE_EDIT_FIELDS = [
+    { key: 'remarks', label: 'Remarks', type: 'text' },
+    { key: 'type', label: 'Type', type: 'select', options: ['Xray', 'sing-box', 'Hysteria2', 'SS', 'SSR', 'Brook'] },
+    { key: 'protocol', label: 'Protocol', type: 'select', options: ['vless', 'vmess', 'trojan', 'shadowsocks', 'socks', 'http', 'wireguard', 'hysteria2', 'tuic'] },
+    { key: 'address', label: 'Address', type: 'text' },
+    { key: 'port', label: 'Port', type: 'text' },
+    { key: 'uuid', label: 'UUID / User ID', type: 'text' },
+    { key: 'password', label: 'Password', type: 'text' },
+    { key: 'security', label: 'Security', type: 'text' },
+    { key: 'encryption', label: 'Encryption', type: 'text' },
+    { key: 'flow', label: 'Flow Control', type: 'select', options: ['', 'xtls-rprx-vision', 'xtls-rprx-vision-udp443'] },
+    { key: 'transport', label: 'Transport', type: 'select', options: ['', 'raw', 'ws', 'grpc', 'h2', 'httpupgrade', 'xhttp', 'mkcp', 'quic'] },
+    { key: 'tls', label: 'TLS', type: 'select', options: ['0', '1'] },
+    { key: 'tls_serverName', label: 'TLS Server Name (SNI)', type: 'text' },
+    { key: 'tls_allowInsecure', label: 'Allow Insecure', type: 'select', options: ['0', '1'] },
+    { key: 'fingerprint', label: 'uTLS Fingerprint', type: 'select', options: ['', 'chrome', 'firefox', 'safari', 'edge', 'ios', 'android', 'random', 'randomized'] },
+    { key: 'alpn', label: 'ALPN', type: 'text' },
+    { key: 'reality', label: 'Reality', type: 'select', options: ['0', '1'] },
+    { key: 'reality_publicKey', label: 'Reality Public Key', type: 'text' },
+    { key: 'reality_shortId', label: 'Reality Short ID', type: 'text' },
+    { key: 'reality_spiderX', label: 'Reality SpiderX', type: 'text' },
+    { key: 'ws_host', label: 'WS Host', type: 'text' },
+    { key: 'ws_path', label: 'WS Path', type: 'text' },
+    { key: 'h2_host', label: 'H2 Host', type: 'text' },
+    { key: 'h2_path', label: 'H2 Path', type: 'text' },
+    { key: 'grpc_serviceName', label: 'gRPC Service Name', type: 'text' },
+    { key: 'httpupgrade_host', label: 'HTTPUpgrade Host', type: 'text' },
+    { key: 'httpupgrade_path', label: 'HTTPUpgrade Path', type: 'text' },
+    { key: 'group', label: 'Group', type: 'text' },
+];
+
+function openNodeEditModal(node) {
+    currentEditNode = node;
+    document.getElementById('nodeEditTitle').textContent = `✏️ ${escHtml(node.remark || node.id)}`;
+    const body = document.getElementById('nodeEditBody');
+    body.innerHTML = '';
+
+    NODE_EDIT_FIELDS.forEach(f => {
+        const group = document.createElement('div');
+        group.className = 'custom-input-group';
+        const label = document.createElement('label');
+        label.textContent = f.label;
+        group.appendChild(label);
+
+        if (f.type === 'select') {
+            const sel = document.createElement('select');
+            sel.id = `ne-${f.key}`;
+            (f.options || []).forEach(opt => {
+                const o = document.createElement('option');
+                o.value = opt; o.textContent = opt || '(none)';
+                if (String(node[f.key] || '') === opt) o.selected = true;
+                sel.appendChild(o);
+            });
+            // If current value not in options, add it
+            const curVal = String(node[f.key] || '');
+            if (curVal && !f.options.includes(curVal)) {
+                const o = document.createElement('option');
+                o.value = curVal; o.textContent = curVal; o.selected = true;
+                sel.insertBefore(o, sel.firstChild);
+            }
+            group.appendChild(sel);
+        } else {
+            const inp = document.createElement('input');
+            inp.type = 'text'; inp.id = `ne-${f.key}`;
+            inp.value = node[f.key] || '';
+            group.appendChild(inp);
+        }
+        body.appendChild(group);
+    });
+
+    document.getElementById('nodeEditSaveBtn').onclick = saveNodeEdit;
+    document.getElementById('nodeEditModal').style.display = 'flex';
+}
+
+async function saveNodeEdit() {
+    if (!currentEditNode) return;
+    const fields = {};
+    NODE_EDIT_FIELDS.forEach(f => {
+        const el = document.getElementById(`ne-${f.key}`);
+        if (el) {
+            const newVal = el.value;
+            const oldVal = String(currentEditNode[f.key] || '');
+            if (newVal !== oldVal) fields[f.key] = newVal;
+        }
+    });
+    if (Object.keys(fields).length === 0) { showToast('No changes'); return; }
+    try {
+        const r = await apiCall('/api/action/edit_node', 'POST', {
+            node_id: currentEditNode.id, fields
+        });
+        showToast(r.ok ? '💾 Node saved!' : `❌ ${r.msg || 'Failed'}`);
+        closeNodeEditModal();
+        loadConfig();
+    } catch (e) { showToast('❌ Save failed'); }
+}
+
+function closeNodeEditModal() { document.getElementById('nodeEditModal').style.display = 'none'; }
 
 // ═══════════════════════════════════════════════════════════════
 //  ACL MANAGEMENT
@@ -451,7 +600,16 @@ function renderShuntRules(rules) {
         el.className = 'shunt-item';
         const domainCount = (r.domain_list || '').split('\n').filter(x => x.trim()).length;
         const ipCount = (r.ip_list || '').split('\n').filter(x => x.trim()).length;
-        el.innerHTML = `<div class="shunt-header"><span class="shunt-name">${escHtml(r.remarks || r['.name'] || '?')}</span><button class="btn btn-xs btn-primary" onclick="openShuntModal(${JSON.stringify(r).replace(/"/g, '&quot;')})">✏️ Edit</button></div><div class="shunt-preview">📂 ${domainCount} domains, 🌐 ${ipCount} IPs</div>`;
+        // Show all key info in preview
+        const infoParts = [];
+        if (r.protocol) infoParts.push(`Proto: ${r.protocol}`);
+        if (r.network && r.network !== 'tcp,udp') infoParts.push(`Net: ${r.network}`);
+        if (r.inbound) infoParts.push(`In: ${r.inbound}`);
+        if (r.source) infoParts.push(`Src: ${r.source}`);
+        if (r.port) infoParts.push(`Port: ${r.port}`);
+        const infoStr = infoParts.length ? `<div class="shunt-meta">${escHtml(infoParts.join(' | '))}</div>` : '';
+
+        el.innerHTML = `<div class="shunt-header"><span class="shunt-name">${escHtml(r.remarks || r['.name'] || '?')}</span><button class="btn btn-xs btn-primary" onclick='openShuntModal(${JSON.stringify(JSON.stringify(r))})'>✏️ Edit</button></div>${infoStr}<div class="shunt-preview">📂 ${domainCount} domains, 🌐 ${ipCount} IPs</div>`;
         container.appendChild(el);
     });
 }
@@ -460,18 +618,34 @@ let currentShuntRule = null;
 function openShuntModal(rule) {
     currentShuntRule = typeof rule === 'string' ? JSON.parse(rule) : rule;
     document.getElementById('shuntModalTitle').textContent = `📝 ${escHtml(currentShuntRule.remarks || currentShuntRule['.name'] || 'Rule')}`;
+    // Populate ALL fields
+    document.getElementById('shuntRemarks').value = currentShuntRule.remarks || '';
+    document.getElementById('shuntProtocol').value = currentShuntRule.protocol || '';
+    document.getElementById('shuntInbound').value = currentShuntRule.inbound || '';
+    document.getElementById('shuntNetwork').value = currentShuntRule.network || 'tcp,udp';
+    document.getElementById('shuntSource').value = currentShuntRule.source || '';
+    document.getElementById('shuntSourcePort').value = currentShuntRule.sourcePort || '';
+    document.getElementById('shuntPort').value = currentShuntRule.port || '';
     document.getElementById('shuntDomains').value = currentShuntRule.domain_list || '';
     document.getElementById('shuntIPs').value = currentShuntRule.ip_list || '';
     document.getElementById('shuntSaveBtn').onclick = async () => {
         try {
             await apiCall('/api/action/set_shunt', 'POST', {
                 rule_name: currentShuntRule['.name'],
+                remarks: document.getElementById('shuntRemarks').value,
+                protocol: document.getElementById('shuntProtocol').value,
+                inbound: document.getElementById('shuntInbound').value,
+                network: document.getElementById('shuntNetwork').value,
+                source: document.getElementById('shuntSource').value,
+                sourcePort: document.getElementById('shuntSourcePort').value,
+                port: document.getElementById('shuntPort').value,
                 domain_list: document.getElementById('shuntDomains').value,
                 ip_list: document.getElementById('shuntIPs').value,
             });
             showToast('💾 Shunt rule saved!');
             closeShuntModal();
-        } catch (e) { }
+            loadConfig();
+        } catch (e) { showToast('❌ Save failed'); }
     };
     document.getElementById('shuntModal').style.display = 'flex';
 }

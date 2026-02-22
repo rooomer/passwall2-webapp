@@ -871,3 +871,32 @@ body {
 .switch-sm input:checked+.slider:before {
     transform: translateX(16px);
 }
+
+/* ─── Latency Colors ──────────────────────────────── */
+.latency-good {
+    color: #00e676 !important;
+    font-weight: 700;
+}
+
+.latency-ok {
+    color: #ffc107 !important;
+    font-weight: 700;
+}
+
+.latency-slow {
+    color: #ff7043 !important;
+    font-weight: 700;
+}
+
+.latency-bad {
+    color: var(--pw-danger) !important;
+    font-weight: 700;
+}
+
+/* ─── Shunt Rule Meta ─────────────────────────────── */
+.shunt-meta {
+    font-size: 0.7rem;
+    color: var(--pw-accent-light);
+    margin-top: 4px;
+    opacity: 0.8;
+}
