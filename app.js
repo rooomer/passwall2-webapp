@@ -1,10 +1,13 @@
 /* ═══════════════════════════════════════════════════════════════
-   PassWall 2 - Telegram Mini App JavaScript (v2 - Full Management)
-   Communicates with the OpenWrt bot via Telegram.WebApp.sendData()
+   PassWall 2 — Telegram Mini App (v3 - Real-Time API)
+   Uses fetch() to talk to the OpenWrt router via Cloudflare Tunnel.
+   The app NEVER closes — all results are shown live in the UI.
    ═══════════════════════════════════════════════════════════════ */
 
-// ─── Telegram WebApp Instance ──────────────────────────────────
+// ─── Global State ──────────────────────────────────────────────
 const tg = window.Telegram?.WebApp;
+let API_URL = '';
+let SESSION_TOKEN = '';
 let configData = {};
 let pendingChanges = {};
 
@@ -16,75 +19,119 @@ document.addEventListener('DOMContentLoaded', () => {
         tg.MainButton.setText('Apply Changes');
         tg.MainButton.hide();
         tg.MainButton.onClick(applyChanges);
-        parseInitData();
+    }
+
+    // Extract API URL and token from URL params
+    const params = new URLSearchParams(window.location.search);
+    API_URL = params.get('api') || '';
+    SESSION_TOKEN = params.get('token') || '';
+
+    if (API_URL) {
+        loadConfig();
+    } else {
+        // Fallback: try old ?d= param for backward compatibility
+        parseOldInitData(params);
     }
     renderDnsPresets();
 });
 
-// ─── Parse Data from Bot ───────────────────────────────────────
-function parseInitData() {
+// ═══════════════════════════════════════════════════════════════
+//  API COMMUNICATION (Real-Time via fetch)
+// ═══════════════════════════════════════════════════════════════
+
+async function apiCall(endpoint, method = 'GET', body = null) {
+    const opts = {
+        method,
+        headers: {
+            'Authorization': `Bearer ${SESSION_TOKEN}`,
+            'Content-Type': 'application/json',
+        },
+    };
+    if (body) opts.body = JSON.stringify(body);
+
     try {
-        const params = new URLSearchParams(window.location.search);
+        const resp = await fetch(`${API_URL}${endpoint}`, opts);
+        if (!resp.ok) {
+            const err = await resp.json().catch(() => ({}));
+            throw new Error(err.error || `HTTP ${resp.status}`);
+        }
+        return await resp.json();
+    } catch (e) {
+        console.error(`API error (${endpoint}):`, e);
+        showToast(`❌ ${e.message}`);
+        throw e;
+    }
+}
+
+// ─── Load Full Config from Router ──────────────────────────────
+async function loadConfig() {
+    showToast('Loading config...');
+    try {
+        configData = await apiCall('/api/config');
+        populateUI(configData);
+        showToast('✅ Config loaded!');
+    } catch (e) {
+        showToast('❌ Failed to load config');
+    }
+}
+
+// ─── Backward Compatibility (old ?d= param) ───────────────────
+function parseOldInitData(params) {
+    try {
         const dataParam = params.get('d') || params.get('data');
         if (dataParam) {
             const raw = JSON.parse(dataParam);
             configData = {
-                running: raw.s || raw.running || false,
-                active_node: raw.n || raw.active_node || '',
-                nodes: (raw.nl || raw.nodes || []).map(n => ({
+                running: raw.s || false,
+                active_node: raw.n || '',
+                nodes: (raw.nl || []).map(n => ({
                     id: n.i || n.id,
                     remark: n.r || n.remark,
                     type: n.t || n.type || '',
                     protocol: n.p || n.protocol || '',
-                    group: n.g || n.group || 'default',
+                    group: n.g || n.group || '',
                     address: n.a || n.address || '',
                     port: n.pt || n.port || '',
                 })),
                 dns: {
-                    remote_dns_protocol: raw.dp || (raw.dns && raw.dns.remote_dns_protocol) || 'tcp',
-                    remote_dns: raw.ds || (raw.dns && raw.dns.remote_dns) || '',
-                    remote_dns_doh: raw.dd || (raw.dns && raw.dns.remote_dns_doh) || '',
-                    remote_fakedns: raw.df || (raw.dns && raw.dns.remote_fakedns) || '0',
-                    dns_redirect: raw.dr || (raw.dns && raw.dns.dns_redirect) || '1',
-                    remote_dns_query_strategy: raw.dqs || (raw.dns && raw.dns.remote_dns_query_strategy) || 'UseIPv4',
-                    direct_dns_query_strategy: raw.dqd || (raw.dns && raw.dns.direct_dns_query_strategy) || 'UseIP',
-                    remote_dns_detour: raw.det || (raw.dns && raw.dns.remote_dns_detour) || 'remote',
-                    remote_dns_client_ip: (raw.dns && raw.dns.remote_dns_client_ip) || '',
-                    dns_hosts: (raw.dns && raw.dns.dns_hosts) || '',
+                    remote_dns_protocol: raw.dp || 'tcp',
+                    remote_dns: raw.ds || '',
+                    remote_dns_doh: raw.dd || '',
+                    remote_fakedns: raw.df || '0',
+                    dns_redirect: raw.dr || '1',
+                    remote_dns_query_strategy: raw.dqs || 'UseIPv4',
+                    direct_dns_query_strategy: raw.dqd || 'UseIP',
+                    remote_dns_detour: raw.det || 'remote',
                 },
-                socks: raw.socks || [],
-                servers: raw.servers || [],
                 acl: raw.acl || [],
                 shunt_rules: raw.shunt_rules || [],
+                socks: raw.socks || [],
                 haproxy: raw.haproxy || [],
-                subscriptions: raw.subscriptions || [],
             };
         }
     } catch (e) {
-        console.error('Failed to parse init data:', e);
+        console.error('parseOldInitData:', e);
     }
     populateUI(configData);
 }
 
-// ─── Populate UI from Config Data ──────────────────────────────
+// ═══════════════════════════════════════════════════════════════
+//  POPULATE UI
+// ═══════════════════════════════════════════════════════════════
+
 function populateUI(data) {
     // Status
     const running = data.running || false;
     const dot = document.getElementById('statusDot');
     const statusText = document.getElementById('statusText');
-    if (running) {
-        dot.classList.add('active');
-        statusText.textContent = 'Running';
-    } else {
-        dot.classList.remove('active');
-        statusText.textContent = 'Stopped';
-    }
+    if (running) { dot.classList.add('active'); statusText.textContent = 'Running'; }
+    else { dot.classList.remove('active'); statusText.textContent = 'Stopped'; }
     document.getElementById('svcStatus').textContent = running ? '🟢 Running' : '🔴 Stopped';
 
     // Active node
-    const activeNodeId = data.active_node || '';
+    const activeId = data.active_node || '';
     const nodes = data.nodes || [];
-    const activeNode = nodes.find(n => n.id === activeNodeId);
+    const activeNode = nodes.find(n => n.id === activeId);
     document.getElementById('activeNode').textContent = activeNode ? activeNode.remark : 'N/A';
 
     // DNS
@@ -92,7 +139,6 @@ function populateUI(data) {
     document.getElementById('dnsProto').textContent = (dns.remote_dns_protocol || 'tcp').toUpperCase();
     document.getElementById('dnsServer').textContent =
         dns.remote_dns_protocol === 'doh' ? (dns.remote_dns_doh || '') : (dns.remote_dns || '');
-
     document.querySelectorAll('input[name="dns_proto"]').forEach(r => {
         r.checked = r.value === (dns.remote_dns_protocol || 'tcp');
     });
@@ -105,47 +151,27 @@ function populateUI(data) {
     document.getElementById('dnsHostsInput').value = dns.dns_hosts || '';
 
     // Nodes
-    renderNodes(nodes, activeNodeId);
-
-    // SOCKS
-    renderList('socksList', data.socks || [], (s) => ({
-        name: `Port ${s.port || '?'}`,
-        detail: `Node: ${s.node || 'N/A'}`,
-        status: s.enabled === '1' ? '🟢' : '🔴'
-    }));
-
-    // Server
-    renderList('serverList', data.servers || [], (s) => ({
-        name: s.remarks || s['.name'] || '?',
-        detail: `${s.type || ''} ${s.protocol || ''} :${s.port || '?'}`,
-        status: s.enable === '1' ? '🟢' : '🔴'
-    }));
-
-    // ACL
+    renderNodes(nodes, activeId);
+    // ACL, Shunt, SOCKS, HAProxy, etc.
     renderACL(data.acl || []);
-
-    // Shunt Rules
     renderShuntRules(data.shunt_rules || []);
-
-    // HAProxy
-    renderList('haproxyList', data.haproxy || [], (c) => ({
-        name: `Node: ${c.lbss || '?'}`,
-        detail: '',
-        status: c.enabled === '1' ? '🟢' : '🔴'
+    renderList('socksList', data.socks || [], s => ({
+        name: `Port ${s.port || '?'}`, detail: `Node: ${s.node || 'N/A'}`, status: s.enabled === '1' ? '🟢' : '🔴'
     }));
-
-    // Subscriptions
-    renderList('subList', data.subscriptions || [], (s) => ({
-        name: s.remark || s['.name'] || '?',
-        detail: s.url || '',
-        status: '🔗'
+    renderList('serverList', data.servers || [], s => ({
+        name: s.remarks || s['.name'] || '?', detail: `${s.type || ''} :${s.port || '?'}`, status: s.enable === '1' ? '🟢' : '🔴'
     }));
-
+    renderList('haproxyList', data.haproxy || [], c => ({
+        name: `Node: ${c.lbss || '?'}`, detail: '', status: c.enabled === '1' ? '🟢' : '🔴'
+    }));
+    renderList('subList', data.subscriptions || [], s => ({
+        name: s.remark || s['.name'] || '?', detail: s.url || '', status: '🔗'
+    }));
     highlightDnsPreset();
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  NODE MANAGEMENT
+//  NODE MANAGEMENT (Live API)
 // ═══════════════════════════════════════════════════════════════
 
 function renderNodes(nodes, activeId) {
@@ -154,7 +180,6 @@ function renderNodes(nodes, activeId) {
         container.innerHTML = '<div class="empty-state">No nodes available</div>';
         return;
     }
-
     container.innerHTML = '';
     nodes.forEach(n => {
         const isActive = (n.id === activeId);
@@ -180,7 +205,6 @@ function renderNodes(nodes, activeId) {
         const latency = document.createElement('span');
         latency.className = 'node-latency';
         latency.id = `lat-${n.id}`;
-        latency.textContent = '';
 
         info.appendChild(name);
         info.appendChild(meta);
@@ -188,42 +212,29 @@ function renderNodes(nodes, activeId) {
         el.appendChild(info);
         el.appendChild(latency);
 
-        // Action buttons row
+        // Action buttons
         const actions = document.createElement('div');
         actions.className = 'node-actions';
 
-        const pingBtn = document.createElement('button');
-        pingBtn.className = 'btn btn-xs btn-info';
-        pingBtn.textContent = '📡';
-        pingBtn.title = 'Ping';
-        pingBtn.onclick = (e) => { e.stopPropagation(); pingNode(n); };
+        const pingBtn = makeBtn('📡', 'btn-info', 'Ping', () => pingNode(n));
+        const tcpBtn = makeBtn('🔌', 'btn-warning', 'TCPing', () => tcpingNode(n));
+        const useBtn = makeBtn('✅', 'btn-success', 'Use', () => selectNode(n.id));
+        const detBtn = makeBtn('ℹ️', 'btn-secondary', 'Detail', () => openNodeModal(n));
+        const delBtn = makeBtn('🗑️', 'btn-danger', 'Delete', () => deleteNode(n.id, n.remark));
 
-        const useBtn = document.createElement('button');
-        useBtn.className = 'btn btn-xs btn-success';
-        useBtn.textContent = '✅';
-        useBtn.title = 'Use';
-        useBtn.onclick = (e) => { e.stopPropagation(); selectNode(n.id); };
-
-        const detailBtn = document.createElement('button');
-        detailBtn.className = 'btn btn-xs btn-secondary';
-        detailBtn.textContent = 'ℹ️';
-        detailBtn.title = 'Detail';
-        detailBtn.onclick = (e) => { e.stopPropagation(); openNodeModal(n); };
-
-        const delBtn = document.createElement('button');
-        delBtn.className = 'btn btn-xs btn-danger';
-        delBtn.textContent = '🗑️';
-        delBtn.title = 'Delete';
-        delBtn.onclick = (e) => { e.stopPropagation(); deleteNode(n.id, n.remark); };
-
-        actions.appendChild(pingBtn);
-        actions.appendChild(useBtn);
-        actions.appendChild(detailBtn);
-        actions.appendChild(delBtn);
+        [pingBtn, tcpBtn, useBtn, detBtn, delBtn].forEach(b => actions.appendChild(b));
         el.appendChild(actions);
-
         container.appendChild(el);
     });
+}
+
+function makeBtn(icon, cls, title, onClick) {
+    const b = document.createElement('button');
+    b.className = `btn btn-xs ${cls}`;
+    b.textContent = icon;
+    b.title = title;
+    b.onclick = (e) => { e.stopPropagation(); onClick(); };
+    return b;
 }
 
 function filterNodes() {
@@ -235,128 +246,154 @@ function filterNodes() {
     });
 }
 
-function selectNode(id) {
-    pendingChanges.node = id;
-    pendingChanges.action = 'set_node';
-
-    document.querySelectorAll('.node-item').forEach(el => {
-        el.classList.toggle('active', el.dataset.id === id);
-    });
-
-    const node = (configData.nodes || []).find(n => n.id === id);
-    document.getElementById('activeNode').textContent = node ? node.remark : id;
-
-    showMainButton();
-    showToast('Node selected — tap Apply');
-}
-
-function deleteNode(id, name) {
-    if (confirm(`Delete node "${name || id}"?`)) {
-        sendToBot({ action: 'delete_node', node: id });
-        showToast('🗑️ Node deleted');
-        // Remove from local list
-        const el = document.querySelector(`.node-item[data-id="${id}"]`);
-        if (el) el.remove();
+async function selectNode(id) {
+    if (!API_URL) {
+        // Fallback to old sendData
+        pendingChanges.node = id;
+        pendingChanges.action = 'set_node';
+        showMainButton();
+        showToast('Node selected — tap Apply');
+        return;
     }
+    showToast('🔄 Switching node...');
+    try {
+        const r = await apiCall('/api/action/set_node', 'POST', { node: id });
+        if (r.ok) {
+            showToast('✅ Node switched & restarting!');
+            document.querySelectorAll('.node-item').forEach(el => el.classList.toggle('active', el.dataset.id === id));
+            const node = (configData.nodes || []).find(n => n.id === id);
+            document.getElementById('activeNode').textContent = node ? node.remark : id;
+        } else {
+            showToast(`❌ ${r.error || 'Failed'}`);
+        }
+    } catch (e) { /* error already shown by apiCall */ }
 }
 
-function pingNode(node) {
+async function deleteNode(id, name) {
+    if (!confirm(`Delete node "${name || id}"?`)) return;
+    try {
+        const r = await apiCall('/api/action/delete_node', 'POST', { node: id });
+        if (r.ok) {
+            showToast('🗑️ Node deleted!');
+            document.querySelector(`.node-item[data-id="${id}"]`)?.remove();
+        } else { showToast(`❌ ${r.msg || 'Failed'}`); }
+    } catch (e) { }
+}
+
+async function pingNode(node) {
     const latEl = document.getElementById(`lat-${node.id}`);
-    if (latEl) {
-        latEl.textContent = '...';
-        latEl.className = 'node-latency pinging';
+    if (latEl) { latEl.textContent = '...'; latEl.className = 'node-latency pinging'; }
+    try {
+        const r = await apiCall('/api/action/ping', 'POST', { address: node.address });
+        if (latEl) {
+            latEl.textContent = r.ok ? `${r.ms}ms` : '✕';
+            latEl.className = `node-latency ${r.ok ? '' : 'timeout'}`;
+        }
+    } catch (e) {
+        if (latEl) { latEl.textContent = '✕'; latEl.className = 'node-latency timeout'; }
     }
-    sendToBot({ action: 'ping_node', address: node.address || '', port: node.port || '', node_id: node.id });
-    showToast(`📡 Pinging ${node.remark || node.address}...`);
 }
 
-function pingAllNodes() {
-    const nodes = configData.nodes || [];
-    if (!nodes.length) { showToast('No nodes'); return; }
-    nodes.forEach(n => {
-        const latEl = document.getElementById(`lat-${n.id}`);
-        if (latEl) { latEl.textContent = '...'; latEl.className = 'node-latency pinging'; }
+async function tcpingNode(node) {
+    const latEl = document.getElementById(`lat-${node.id}`);
+    if (latEl) { latEl.textContent = '...'; latEl.className = 'node-latency pinging'; }
+    try {
+        const r = await apiCall('/api/action/tcping', 'POST', { address: node.address, port: node.port || '443' });
+        if (latEl) {
+            latEl.textContent = r.ok ? `${r.ms}ms` : '✕';
+            latEl.className = `node-latency ${r.ok ? '' : 'timeout'}`;
+        }
+    } catch (e) {
+        if (latEl) { latEl.textContent = '✕'; latEl.className = 'node-latency timeout'; }
+    }
+}
+
+async function pingAllNodes() {
+    if (!API_URL) { showToast('API not connected'); return; }
+    showToast('📡 Pinging all nodes...');
+    // Set all to "..."
+    (configData.nodes || []).forEach(n => {
+        const el = document.getElementById(`lat-${n.id}`);
+        if (el) { el.textContent = '...'; el.className = 'node-latency pinging'; }
     });
-    sendToBot({ action: 'ping_all_nodes' });
-    showToast(`📡 Pinging ${nodes.length} nodes...`);
+    try {
+        const r = await apiCall('/api/action/ping_all', 'POST', {});
+        (r.results || []).forEach(nr => {
+            const el = document.getElementById(`lat-${nr.id}`);
+            if (el) {
+                el.textContent = nr.ok ? `${nr.ms}ms` : '✕';
+                el.className = `node-latency ${nr.ok ? '' : 'timeout'}`;
+            }
+        });
+        showToast('✅ Ping All complete!');
+    } catch (e) { showToast('❌ Ping All failed'); }
 }
 
 function addNodeFromUrl() {
     const url = document.getElementById('shareUrlInput').value.trim();
     if (!url) return;
-    sendToBot({ action: 'add_node_url', url: url });
-    document.getElementById('shareUrlInput').value = '';
-    showToast('➕ Adding node from URL...');
+    // This uses old sendData since add_node_url is a one-shot
+    if (API_URL) {
+        apiCall('/api/action/add_node_url', 'POST', { url }).then(r => {
+            showToast(r.ok ? '➕ Node added!' : '❌ Failed');
+            document.getElementById('shareUrlInput').value = '';
+            loadConfig(); // Reload to show new node
+        }).catch(() => { });
+    }
 }
 
-// ─── Node Detail Modal ────────────────────────────────────────
+// ─── Node Detail Modal (with both ping types) ─────────────────
 function openNodeModal(node) {
     const body = document.getElementById('nodeModalBody');
     document.getElementById('nodeModalTitle').textContent = `📋 ${escHtml(node.remark || '?')}`;
-
     body.innerHTML = '';
+
     const grid = document.createElement('div');
     grid.className = 'status-grid';
-
-    const fields = [
-        ['Name', node.remark],
-        ['Type', node.type],
-        ['Protocol', node.protocol],
-        ['Address', node.address],
-        ['Port', node.port],
-        ['Group', node.group],
-        ['ID', node.id],
-    ];
-    fields.forEach(([label, val]) => {
+    [['Name', node.remark], ['Type', node.type], ['Protocol', node.protocol],
+    ['Address', node.address], ['Port', node.port], ['Group', node.group], ['ID', node.id]
+    ].forEach(([label, val]) => {
         const item = document.createElement('div');
         item.className = 'status-item';
-        const lbl = document.createElement('span');
-        lbl.className = 'status-label';
-        lbl.textContent = label;
-        const valEl = document.createElement('span');
-        valEl.className = 'status-value';
-        valEl.textContent = val || '—';
-        if (label === 'ID') valEl.style.fontSize = '0.7rem';
-        item.appendChild(lbl);
-        item.appendChild(valEl);
+        item.innerHTML = `<span class="status-label">${label}</span><span class="status-value">${escHtml(val || '—')}</span>`;
         grid.appendChild(item);
     });
     body.appendChild(grid);
 
-    // Reset ping result
     const pingRes = document.getElementById('nodePingResult');
     pingRes.style.display = 'none';
-    pingRes.textContent = '';
 
-    // Wire buttons
-    document.getElementById('nodeUseBtn').onclick = () => {
-        selectNode(node.id);
-        closeNodeModal();
-    };
-    document.getElementById('nodePingBtn').onclick = () => {
+    document.getElementById('nodeUseBtn').onclick = () => { selectNode(node.id); closeNodeModal(); };
+    document.getElementById('nodePingBtn').onclick = async () => {
         pingRes.style.display = 'block';
-        pingRes.textContent = 'Pinging...';
-        sendToBot({ action: 'ping_node', address: node.address, port: node.port, node_id: node.id });
+        pingRes.textContent = 'Testing...';
+        try {
+            const r = await apiCall('/api/action/ping_node', 'POST', {
+                address: node.address, port: node.port, node_id: node.id
+            });
+            pingRes.textContent =
+                `ICMP:    ${r.icmp_ms ? r.icmp_ms + ' ms' : '❌ timeout'}\n` +
+                `TCPing:  ${r.tcp_ms ? r.tcp_ms + ' ms' : '❌ timeout'}`;
+        } catch (e) { pingRes.textContent = '❌ Test failed'; }
     };
-    document.getElementById('nodeCopyBtn').onclick = () => {
-        sendToBot({ action: 'copy_node', node: node.id });
-        showToast('📋 Node copied');
-        closeNodeModal();
+    document.getElementById('nodeCopyBtn').onclick = async () => {
+        try {
+            const r = await apiCall('/api/action/copy_node', 'POST', { node: node.id });
+            showToast(r.ok ? '📋 Node copied!' : '❌ Failed');
+            closeNodeModal();
+            loadConfig();
+        } catch (e) { }
     };
-    document.getElementById('nodeDelBtn').onclick = () => {
+    document.getElementById('nodeDelBtn').onclick = async () => {
         if (confirm(`Delete "${node.remark}"?`)) {
-            sendToBot({ action: 'delete_node', node: node.id });
-            showToast('🗑️ Node deleted');
+            await deleteNode(node.id, node.remark);
             closeNodeModal();
         }
     };
 
     document.getElementById('nodeModal').style.display = 'flex';
 }
-
-function closeNodeModal() {
-    document.getElementById('nodeModal').style.display = 'none';
-}
+function closeNodeModal() { document.getElementById('nodeModal').style.display = 'none'; }
 
 // ═══════════════════════════════════════════════════════════════
 //  ACL MANAGEMENT
@@ -364,41 +401,29 @@ function closeNodeModal() {
 
 function renderACL(rules) {
     const container = document.getElementById('aclList');
-    if (!rules.length) {
-        container.innerHTML = '<div class="empty-state">No ACL rules</div>';
-        return;
-    }
+    if (!rules.length) { container.innerHTML = '<div class="empty-state">No ACL rules</div>'; return; }
     container.innerHTML = '';
     rules.forEach(r => {
         const el = document.createElement('div');
         el.className = 'list-item list-item-interactive';
-
         const infoDiv = document.createElement('div');
-        const nameEl = document.createElement('div');
-        nameEl.className = 'item-name';
-        nameEl.textContent = r.remarks || r['.name'] || '?';
-        infoDiv.appendChild(nameEl);
+        infoDiv.innerHTML = `<div class="item-name">${escHtml(r.remarks || r['.name'] || '?')}</div><div class="item-detail">Source: ${escHtml(r.sources || 'all')}</div>`;
 
-        const detailEl = document.createElement('div');
-        detailEl.className = 'item-detail';
-        detailEl.textContent = `Source: ${r.sources || 'all'}`;
-        infoDiv.appendChild(detailEl);
-
-        // Toggle switch
         const toggleLabel = document.createElement('label');
         toggleLabel.className = 'switch switch-sm';
-        const toggleInput = document.createElement('input');
-        toggleInput.type = 'checkbox';
-        toggleInput.checked = r.enabled === '1';
-        toggleInput.onchange = () => {
-            sendToBot({ action: 'set_acl', id: r['.name'], enabled: toggleInput.checked ? '1' : '0' });
-            showToast(`ACL ${r.remarks || '?'}: ${toggleInput.checked ? 'enabled' : 'disabled'}`);
+        const input = document.createElement('input');
+        input.type = 'checkbox';
+        input.checked = r.enabled === '1';
+        input.onchange = async () => {
+            try {
+                await apiCall('/api/action/set_acl', 'POST', { id: r['.name'], enabled: input.checked ? '1' : '0' });
+                showToast(`ACL ${r.remarks || '?'}: ${input.checked ? 'enabled' : 'disabled'}`);
+            } catch (e) { }
         };
         const slider = document.createElement('span');
         slider.className = 'slider';
-        toggleLabel.appendChild(toggleInput);
+        toggleLabel.appendChild(input);
         toggleLabel.appendChild(slider);
-
         el.appendChild(infoDiv);
         el.appendChild(toggleLabel);
         container.appendChild(el);
@@ -406,109 +431,61 @@ function renderACL(rules) {
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  SHUNT RULES MANAGEMENT
+//  SHUNT RULES
 // ═══════════════════════════════════════════════════════════════
 
 function renderShuntRules(rules) {
     const container = document.getElementById('shuntList');
-    if (!rules.length) {
-        container.innerHTML = '<div class="empty-state">No shunt rules</div>';
-        return;
-    }
+    if (!rules.length) { container.innerHTML = '<div class="empty-state">No shunt rules</div>'; return; }
     container.innerHTML = '';
     rules.forEach(r => {
         const el = document.createElement('div');
         el.className = 'shunt-item';
-
-        const header = document.createElement('div');
-        header.className = 'shunt-header';
-
-        const name = document.createElement('span');
-        name.className = 'shunt-name';
-        name.textContent = r.remarks || r['.name'] || '?';
-
-        const editBtn = document.createElement('button');
-        editBtn.className = 'btn btn-xs btn-primary';
-        editBtn.textContent = '✏️ Edit';
-        editBtn.onclick = () => openShuntModal(r);
-
-        header.appendChild(name);
-        header.appendChild(editBtn);
-
-        const preview = document.createElement('div');
-        preview.className = 'shunt-preview';
         const domainCount = (r.domain_list || '').split('\n').filter(x => x.trim()).length;
         const ipCount = (r.ip_list || '').split('\n').filter(x => x.trim()).length;
-        preview.textContent = `📂 ${domainCount} domains, 🌐 ${ipCount} IPs`;
-
-        el.appendChild(header);
-        el.appendChild(preview);
+        el.innerHTML = `<div class="shunt-header"><span class="shunt-name">${escHtml(r.remarks || r['.name'] || '?')}</span><button class="btn btn-xs btn-primary" onclick="openShuntModal(${JSON.stringify(r).replace(/"/g, '&quot;')})">✏️ Edit</button></div><div class="shunt-preview">📂 ${domainCount} domains, 🌐 ${ipCount} IPs</div>`;
         container.appendChild(el);
     });
 }
 
 let currentShuntRule = null;
-
 function openShuntModal(rule) {
-    currentShuntRule = rule;
-    document.getElementById('shuntModalTitle').textContent = `📝 ${escHtml(rule.remarks || rule['.name'] || 'Rule')}`;
-    document.getElementById('shuntDomains').value = rule.domain_list || '';
-    document.getElementById('shuntIPs').value = rule.ip_list || '';
-
-    document.getElementById('shuntSaveBtn').onclick = () => {
-        const domains = document.getElementById('shuntDomains').value;
-        const ips = document.getElementById('shuntIPs').value;
-        sendToBot({
-            action: 'set_shunt_rule',
-            rule_name: rule['.name'] || '',
-            domain_list: domains,
-            ip_list: ips,
-        });
-        showToast('💾 Shunt rule saved');
-        closeShuntModal();
+    currentShuntRule = typeof rule === 'string' ? JSON.parse(rule) : rule;
+    document.getElementById('shuntModalTitle').textContent = `📝 ${escHtml(currentShuntRule.remarks || currentShuntRule['.name'] || 'Rule')}`;
+    document.getElementById('shuntDomains').value = currentShuntRule.domain_list || '';
+    document.getElementById('shuntIPs').value = currentShuntRule.ip_list || '';
+    document.getElementById('shuntSaveBtn').onclick = async () => {
+        try {
+            await apiCall('/api/action/set_shunt', 'POST', {
+                rule_name: currentShuntRule['.name'],
+                domain_list: document.getElementById('shuntDomains').value,
+                ip_list: document.getElementById('shuntIPs').value,
+            });
+            showToast('💾 Shunt rule saved!');
+            closeShuntModal();
+        } catch (e) { }
     };
-
     document.getElementById('shuntModal').style.display = 'flex';
 }
-
-function closeShuntModal() {
-    document.getElementById('shuntModal').style.display = 'none';
-    currentShuntRule = null;
-}
+function closeShuntModal() { document.getElementById('shuntModal').style.display = 'none'; }
 
 // ═══════════════════════════════════════════════════════════════
-//  GENERIC LIST RENDERER (XSS-SAFE)
+//  GENERIC LIST RENDERER
 // ═══════════════════════════════════════════════════════════════
 
 function renderList(containerId, items, mapFn) {
     const container = document.getElementById(containerId);
-    if (!items.length) {
-        container.innerHTML = '<div class="empty-state">None configured</div>';
-        return;
-    }
+    if (!items.length) { container.innerHTML = '<div class="empty-state">None configured</div>'; return; }
     container.innerHTML = '';
     items.forEach(item => {
         const { name, detail, status } = mapFn(item);
         const el = document.createElement('div');
         el.className = 'list-item';
-
         const infoDiv = document.createElement('div');
-        const nameEl = document.createElement('div');
-        nameEl.className = 'item-name';
-        nameEl.textContent = name;
-        infoDiv.appendChild(nameEl);
-
-        if (detail) {
-            const detailEl = document.createElement('div');
-            detailEl.className = 'item-detail';
-            detailEl.textContent = detail;
-            infoDiv.appendChild(detailEl);
-        }
-
+        infoDiv.innerHTML = `<div class="item-name">${escHtml(name)}</div>${detail ? `<div class="item-detail">${escHtml(detail)}</div>` : ''}`;
         const statusEl = document.createElement('span');
         statusEl.className = 'item-status';
         statusEl.textContent = status;
-
         el.appendChild(infoDiv);
         el.appendChild(statusEl);
         container.appendChild(el);
@@ -520,23 +497,15 @@ function renderList(containerId, items, mapFn) {
 // ═══════════════════════════════════════════════════════════════
 
 const DNS_TCP_PRESETS = [
-    { addr: '1.1.1.1', label: 'Cloudflare' },
-    { addr: '1.1.1.2', label: 'CF-Security' },
-    { addr: '8.8.8.8', label: 'Google' },
-    { addr: '8.8.4.4', label: 'Google 2' },
-    { addr: '9.9.9.9', label: 'Quad9' },
-    { addr: '208.67.222.222', label: 'OpenDNS' },
+    { addr: '1.1.1.1', label: 'Cloudflare' }, { addr: '1.1.1.2', label: 'CF-Security' },
+    { addr: '8.8.8.8', label: 'Google' }, { addr: '8.8.4.4', label: 'Google 2' },
+    { addr: '9.9.9.9', label: 'Quad9' }, { addr: '208.67.222.222', label: 'OpenDNS' },
 ];
-
 const DNS_DOH_PRESETS = [
     { addr: 'https://1.1.1.1/dns-query', label: 'Cloudflare' },
-    { addr: 'https://1.1.1.2/dns-query', label: 'CF-Security' },
     { addr: 'https://8.8.8.8/dns-query', label: 'Google' },
     { addr: 'https://9.9.9.9/dns-query', label: 'Quad9' },
-    { addr: 'https://208.67.222.222/dns-query', label: 'OpenDNS' },
     { addr: 'https://dns.adguard.com/dns-query,94.140.14.14', label: 'AdGuard' },
-    { addr: 'https://doh.libredns.gr/dns-query,116.202.176.26', label: 'LibreDNS' },
-    { addr: 'https://doh.libredns.gr/ads,116.202.176.26', label: 'LibreDNS NoAds' },
 ];
 
 function renderDnsPresets() {
@@ -571,25 +540,18 @@ function highlightDnsPreset() {
 
 function selectDnsPreset(addr) {
     const proto = getCurrentProto();
-    if (proto === 'doh') {
-        pendingChanges.remote_dns_doh = addr;
-    } else {
-        pendingChanges.remote_dns = addr;
-    }
+    if (proto === 'doh') pendingChanges.remote_dns_doh = addr;
+    else pendingChanges.remote_dns = addr;
     pendingChanges.action = 'dns_change';
-    document.querySelectorAll('.preset-chip').forEach(chip => {
-        chip.classList.toggle('active', chip.dataset.addr === addr);
-    });
+    document.querySelectorAll('.preset-chip').forEach(c => c.classList.toggle('active', c.dataset.addr === addr));
     document.getElementById('dnsServer').textContent = addr;
     showMainButton();
-    showToast('DNS server selected — tap Apply');
+    showToast('DNS selected — tap Apply');
 }
 
 function setCustomDns() {
     const val = document.getElementById('customDns').value.trim();
-    if (!val) return;
-    selectDnsPreset(val);
-    document.getElementById('customDns').value = '';
+    if (val) { selectDnsPreset(val); document.getElementById('customDns').value = ''; }
 }
 
 function setDnsProto(proto) {
@@ -597,7 +559,6 @@ function setDnsProto(proto) {
     pendingChanges.action = 'dns_change';
     renderDnsPresets();
     showMainButton();
-    showToast(`DNS Protocol → ${proto.toUpperCase()}`);
 }
 
 function toggleDnsOpt(key, checked) {
@@ -613,67 +574,84 @@ function setDnsOpt(key, value) {
 }
 
 function setEcs() {
-    const val = document.getElementById('ecsInput').value.trim();
-    pendingChanges.remote_dns_client_ip = val || '';
+    pendingChanges.remote_dns_client_ip = document.getElementById('ecsInput').value.trim();
     pendingChanges.action = 'dns_change';
     showMainButton();
     showToast('ECS updated — tap Apply');
 }
 
 function setDnsHosts() {
-    const val = document.getElementById('dnsHostsInput').value.trim();
-    pendingChanges.dns_hosts = val;
+    pendingChanges.dns_hosts = document.getElementById('dnsHostsInput').value.trim();
     pendingChanges.action = 'dns_change';
     showMainButton();
-    showToast('Domain overrides updated — tap Apply');
+    showToast('Overrides updated — tap Apply');
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  SETTINGS MANAGEMENT
+//  SETTINGS (Instant via API)
 // ═══════════════════════════════════════════════════════════════
 
-function setForwarding(key, value) {
-    sendToBot({ action: 'set_forwarding', key: key, value: value });
-    showToast(`✅ ${key} → ${value}`);
+async function setForwarding(key, value) {
+    try {
+        await apiCall('/api/action/set_forwarding', 'POST', { key, value });
+        showToast(`✅ ${key} → ${value}`);
+    } catch (e) { }
 }
 
-function setDelay(key, value) {
-    sendToBot({ action: 'set_delay', key: key, value: value });
-    showToast(`✅ ${key} → ${value}`);
+async function setDelay(key, value) {
+    try {
+        await apiCall('/api/action/set_delay', 'POST', { key, value });
+        showToast(`✅ ${key} → ${value}`);
+    } catch (e) { }
 }
 
-function setGlobalOpt(key, value) {
-    sendToBot({ action: 'set_global_opt', key: key, value: value });
-    showToast(`✅ ${key} → ${value}`);
+async function setGlobalOpt(key, value) {
+    try {
+        await apiCall('/api/action/set_global', 'POST', { key, value });
+        showToast(`✅ ${key} → ${value}`);
+    } catch (e) { }
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  ACTIONS / COMMANDS
+//  ACTIONS
 // ═══════════════════════════════════════════════════════════════
 
-function doAction(action) {
-    sendToBot({ action: action });
-    showToast(`${action} command sent!`);
+async function doAction(action) {
+    showToast(`🔄 ${action}...`);
+    try {
+        const r = await apiCall(`/api/action/${action}`, 'POST', {});
+        showToast(`✅ ${r.msg || action + ' done!'}`);
+        // Refresh status after service actions
+        if (['start', 'stop', 'restart'].includes(action)) {
+            setTimeout(loadConfig, 2000);
+        }
+    } catch (e) { }
 }
 
-function doGeoLookup() {
+async function doGeoLookup() {
     const val = document.getElementById('geoInput').value.trim();
     if (!val) return;
-    document.getElementById('geoResult').textContent = 'Looking up...';
-    sendToBot({ action: 'geo_lookup', value: val });
-    showToast('GeoView lookup sent');
+    const resEl = document.getElementById('geoResult');
+    resEl.textContent = 'Looking up...';
+    try {
+        const r = await apiCall('/api/action/geo_lookup', 'POST', { value: val });
+        resEl.textContent = r.result || 'No result';
+    } catch (e) { resEl.textContent = '❌ Lookup failed'; }
 }
 
-function doPing() {
+async function doPing() {
     const val = document.getElementById('pingInput').value.trim();
     if (!val) return;
-    document.getElementById('pingResult').textContent = 'Pinging...';
-    sendToBot({ action: 'ping', address: val });
-    showToast('Ping command sent');
+    const resEl = document.getElementById('pingResult');
+    resEl.textContent = 'Pinging...';
+    try {
+        const r = await apiCall('/api/action/ping', 'POST', { address: val });
+        resEl.textContent = r.ok ? `${r.ms} ms` : '❌ Timeout';
+    } catch (e) { resEl.textContent = '❌ Failed'; }
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  TAB SWITCHING
+//  TABS
 // ═══════════════════════════════════════════════════════════════
 
 function switchTab(tabName) {
@@ -684,54 +662,43 @@ function switchTab(tabName) {
 }
 
 // ═══════════════════════════════════════════════════════════════
-//  APPLY CHANGES
+//  APPLY CHANGES (DNS batch — everything else is instant)
 // ═══════════════════════════════════════════════════════════════
 
-function applyChanges() {
-    if (Object.keys(pendingChanges).length === 0) {
-        showToast('No changes to apply');
-        return;
-    }
+async function applyChanges() {
+    if (Object.keys(pendingChanges).length === 0) { showToast('No changes'); return; }
 
     const action = pendingChanges.action || 'apply_config';
     const changes = { ...pendingChanges };
     delete changes.action;
 
-    if (action === 'set_node') {
-        sendToBot({ action: 'set_node', node: changes.node });
-    } else if (action === 'dns_change') {
-        sendToBot({ action: 'dns_change', changes: changes });
-    } else {
-        sendToBot({ action: 'apply_config', changes: changes });
-    }
-
-    pendingChanges = {};
-    tg?.MainButton.hide();
-    showToast('✅ Changes applied!');
+    showToast('🔄 Applying...');
+    try {
+        if (action === 'set_node') {
+            await apiCall('/api/action/set_node', 'POST', { node: changes.node });
+        } else if (action === 'dns_change') {
+            await apiCall('/api/action/dns_change', 'POST', { changes });
+        } else {
+            await apiCall('/api/config', 'POST', { changes });
+        }
+        showToast('✅ Changes applied!');
+        pendingChanges = {};
+        tg?.MainButton.hide();
+        setTimeout(loadConfig, 1500);
+    } catch (e) { showToast('❌ Apply failed'); }
 }
 
-function sendToBot(data) {
-    const payload = typeof data === 'string' ? data : JSON.stringify(data);
-    if (tg) {
-        tg.sendData(payload);
-    } else {
-        console.log('sendData:', payload);
-    }
-}
-
-function showMainButton() {
-    if (tg) tg.MainButton.show();
-}
+function showMainButton() { if (tg) tg.MainButton.show(); }
 
 // ═══════════════════════════════════════════════════════════════
 //  UTILITY
 // ═══════════════════════════════════════════════════════════════
 
-function showToast(message) {
-    const toast = document.getElementById('toast');
-    toast.textContent = message;
-    toast.classList.add('show');
-    setTimeout(() => toast.classList.remove('show'), 2500);
+function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 2500);
 }
 
 function escHtml(str) {
