@@ -1339,6 +1339,31 @@ function _renderHeatmap(found) {
     }).join('');
 }
 
+// ── Install Masscan ────────────────────────────────────────────
+async function installMasscan() {
+    try {
+        const btn = event.currentTarget;
+        const origHtml = btn.innerHTML;
+        btn.innerHTML = '<span class="spinner" style="width:12px;height:12px;"></span> Installing...';
+        btn.disabled = true;
+
+        const res = await apiCall('/api/action/dns_scanner_install_masscan', 'POST', {});
+        if (res.ok) {
+            showToast('✅ Masscan Installed!');
+            btn.innerHTML = '<span class="material-icons" style="font-size:0.9rem;">check</span> Installed';
+            setTimeout(() => { btn.innerHTML = origHtml; btn.disabled = false; }, 3000);
+        } else {
+            alert('Install Failed: ' + (res.msg || 'Unknown error'));
+            btn.innerHTML = origHtml;
+            btn.disabled = false;
+        }
+    } catch (e) {
+        alert('Install Error: ' + e);
+        event.currentTarget.disabled = false;
+        event.currentTarget.innerHTML = '<span class="material-icons" style="font-size:0.9rem;">download</span> Install';
+    }
+}
+
 // ── Poll Status ────────────────────────────────────────────────
 async function pollScanStatus() {
     try {
