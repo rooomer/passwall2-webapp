@@ -1226,6 +1226,7 @@ async function startDnsScan() {
     const check_ns = document.getElementById('scanCheckNs').checked;
     const blacklist_enabled = document.getElementById('scanBlacklistEnabled').checked;
     const domains = (document.getElementById('scanExtraDomains').value || '').trim();
+    const source_port = parseInt(document.getElementById('scanSourcePort').value) || 0;
 
     if (!domain) { showToast('⚠️ Target Domain is required'); return; }
     if (!cidr_text) { showToast('⚠️ Enter IPs/CIDRs or select a CIDR list'); return; }
@@ -1242,7 +1243,7 @@ async function startDnsScan() {
     try {
         const r = await apiCall('/api/action/dns_scanner_start', 'POST', {
             domain, cidr_text, preset, dns_type, sample_size, random_subdomain,
-            auto_retry, check_ns, blacklist_enabled, domains
+            auto_retry, check_ns, blacklist_enabled, domains, source_port
         });
         showToast(r.ok ? '🚀 ' + r.msg : '❌ ' + r.msg);
         if (r.ok) {
