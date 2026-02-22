@@ -11,12 +11,10 @@ jobs:
     strategy:
       matrix:
         include:
-          - target: x86_64-unknown-linux-musl
-            arch: amd64
+          - arch: amd64
             docker_platform: linux/amd64
             artifact: slipstream-client-linux-amd64-musl
-          - target: aarch64-unknown-linux-musl
-            arch: arm64
+          - arch: arm64
             docker_platform: linux/arm64
             artifact: slipstream-client-linux-arm64-musl
 
@@ -36,32 +34,25 @@ jobs:
           docker run --rm --platform ${{ matrix.docker_platform }} \
             -v "${{ github.workspace }}:/workspace" \
             -w /workspace \
-            alpine:edge sh -c '
+            alpine:edge sh -ex -c '
               apk add --no-cache curl gcc g++ musl-dev cmake make perl \
                 openssl-dev openssl-libs-static git bash pkgconf linux-headers
-              
-              # Install Rust via rustup
+
               curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
               source $HOME/.cargo/env
-              
-              # Configure Cargo to build fully static binaries for the target ONLY
-              # (Proc-macros for the host will remain dynamic, avoiding the clap_derive error)
-              mkdir -p .cargo
-              cat > .cargo/config.toml <<EOF
-              [target.${{ matrix.target }}]
-              rustflags = ["-C", "target-feature=+crt-static"]
-              EOF
-              
+
               export OPENSSL_STATIC=1
-              
-              # Explicitly pass --target to force Cargo to separate host/target build contexts
-              cargo build --target ${{ matrix.target }} --release -p slipstream-client
-              
-              # Copy artifact out and fix permissions so GitHub Actions can upload it
-              cp target/${{ matrix.target }}/release/slipstream-client /workspace/${{ matrix.artifact }}
-              chown -R 1001:1001 /workspace/${{ matrix.artifact }} || true
+
+              cargo build --release -p slipstream-client
+
+              cp target/release/slipstream-client /workspace/${{ matrix.artifact }}
               chmod 777 /workspace/${{ matrix.artifact }}
             '
+
+      - name: Verify artifact exists
+        run: |
+          ls -la ${{ matrix.artifact }}
+          file ${{ matrix.artifact }}
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -81,10 +72,8 @@ jobs:
       - name: Prepare release files
         run: |
           mkdir -p release
-          # actions/download-artifact@v4 with no path will create directories for each artifact name
           for dir in slipstream-client-*; do
             if [ -d "$dir" ]; then
-              # Get the file inside the directory and move it to release/ named as the artifact name
               mv "$dir"/* "release/$dir"
               chmod +x "release/$dir"
             fi
