@@ -15,23 +15,21 @@ jobs:
           repository: Mygod/slipstream-rust
           submodules: recursive
 
-      - name: Install musl toolchain & deps
+      - name: Install build deps
         run: |
           sudo apt-get update
-          sudo apt-get install -y musl-tools cmake perl pkg-config libssl-dev
+          sudo apt-get install -y musl-tools cmake perl
 
       - name: Install Rust with musl target
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: x86_64-unknown-linux-musl
 
-      - name: Build slipstream-client (native musl)
+      - name: Build slipstream-client (x86_64 musl)
         run: |
           export CC=musl-gcc
           export OPENSSL_STATIC=1
-          export OPENSSL_LIB_DIR=/usr/lib/x86_64-linux-gnu
-          export OPENSSL_INCLUDE_DIR=/usr/include
-          cargo build --release --target x86_64-unknown-linux-musl -p slipstream-client
+          cargo build --release --target x86_64-unknown-linux-musl -p slipstream-client --features openssl-vendored
         env:
           RUSTFLAGS: "-C target-feature=+crt-static"
 
@@ -58,8 +56,11 @@ jobs:
           docker run --rm --platform linux/arm64 \
             -v "${{ github.workspace }}:/workspace" \
             -w /workspace \
-            alpine:3.19 sh -c '
-              apk add --no-cache rust cargo cmake make perl openssl-dev openssl-libs-static musl-dev gcc g++ git bash pkgconf linux-headers
+            alpine:edge sh -c '
+              apk add --no-cache curl gcc g++ musl-dev cmake make perl \
+                openssl-dev openssl-libs-static git bash pkgconf linux-headers
+              curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+              source $HOME/.cargo/env
               export OPENSSL_STATIC=1
               export RUSTFLAGS="-C target-feature=+crt-static"
               cargo build --release -p slipstream-client
