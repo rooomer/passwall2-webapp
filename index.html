@@ -517,6 +517,35 @@
                         <input type="number" id="scanSourcePort" value="0" min="0" max="65535" placeholder="0">
                     </div>
 
+                    <!-- Masscan Pre-Filter -->
+                    <div class="card"
+                        style="background:rgba(0,200,255,0.08);border:1px solid rgba(0,200,255,0.15);border-radius:10px;padding:12px;margin:10px 0;">
+                        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+                            <span style="font-size:1.1rem;">🔬</span>
+                            <strong style="font-size:0.9rem;">Masscan Pre-Filter</strong>
+                            <label class="switch" style="margin-left:auto;">
+                                <input type="checkbox" id="scanMasscanEnabled" onchange="toggleMasscanOpts()">
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                        <div id="masscanOpts" style="display:none;">
+                            <p style="font-size:0.72rem;opacity:0.55;margin:0 0 8px 0;">First scans port 53 with masscan
+                                (fast SYN), then tests only open IPs for DNS tunnel. Requires masscan binary on router.
+                            </p>
+                            <div class="form-grid">
+                                <label>Scan Rate (pps) <span
+                                        style="font-size:0.7rem;opacity:0.5;">packets/sec</span></label>
+                                <div style="display:flex;gap:8px;align-items:center;">
+                                    <input type="range" id="scanMasscanRate" min="100" max="10000" value="1000"
+                                        step="100" style="flex:1;"
+                                        oninput="document.getElementById('masscanRateVal').textContent=this.value">
+                                    <span id="masscanRateVal"
+                                        style="font-size:0.85rem;font-weight:700;min-width:45px;">1000</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- Controls -->
                     <div class="control-grid" style="margin-top:10px;">
                         <button class="btn btn-success" id="btnStartScan" onclick="startDnsScan()">🚀 Start</button>

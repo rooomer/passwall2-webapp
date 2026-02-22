@@ -1215,6 +1215,11 @@ function _scanBtnState(state) {
     ids.forEach((id, i) => { const el = document.getElementById(id); if (el) el.disabled = flags[i]; });
 }
 
+function toggleMasscanOpts() {
+    const on = document.getElementById('scanMasscanEnabled').checked;
+    document.getElementById('masscanOpts').style.display = on ? 'block' : 'none';
+}
+
 async function startDnsScan() {
     const domain = document.getElementById('scanDomain').value.trim();
     const cidr_text = document.getElementById('scanCidrText').value.trim();
@@ -1227,6 +1232,8 @@ async function startDnsScan() {
     const blacklist_enabled = document.getElementById('scanBlacklistEnabled').checked;
     const domains = (document.getElementById('scanExtraDomains').value || '').trim();
     const source_port = parseInt(document.getElementById('scanSourcePort').value) || 0;
+    const pre_scan_port = document.getElementById('scanMasscanEnabled').checked ? 53 : 0;
+    const pre_scan_rate = parseInt(document.getElementById('scanMasscanRate').value) || 1000;
 
     if (!domain) { showToast('⚠️ Target Domain is required'); return; }
     if (!cidr_text) { showToast('⚠️ Enter IPs/CIDRs or select a CIDR list'); return; }
@@ -1238,12 +1245,13 @@ async function startDnsScan() {
     document.getElementById('scanLogWrap').style.display = 'block';
     document.getElementById('scanResultsBody').innerHTML = '';
     document.getElementById('scanLogPanel').textContent = '';
-    document.getElementById('scannerStatus').textContent = 'starting…';
+    document.getElementById('scannerStatus').textContent = pre_scan_port ? 'masscan phase…' : 'starting…';
 
     try {
         const r = await apiCall('/api/action/dns_scanner_start', 'POST', {
             domain, cidr_text, preset, dns_type, sample_size, random_subdomain,
-            auto_retry, check_ns, blacklist_enabled, domains, source_port
+            auto_retry, check_ns, blacklist_enabled, domains, source_port,
+            pre_scan_port, pre_scan_rate
         });
         showToast(r.ok ? '🚀 ' + r.msg : '❌ ' + r.msg);
         if (r.ok) {
