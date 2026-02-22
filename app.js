@@ -40,25 +40,33 @@ document.addEventListener('DOMContentLoaded', () => {
 // ═══════════════════════════════════════════════════════════════
 
 async function apiCall(endpoint, method = 'GET', body = null) {
-    const opts = {
-        method,
-        headers: {
-            'Authorization': `Bearer ${SESSION_TOKEN}`,
-            'Content-Type': 'application/json',
-        },
+    const headers = {
+        'Authorization': `Bearer ${SESSION_TOKEN}`,
+        'Accept': 'application/json',
     };
+    // Only set Content-Type for requests with a body
+    if (body) headers['Content-Type'] = 'application/json';
+
+    const opts = { method, headers, mode: 'cors' };
     if (body) opts.body = JSON.stringify(body);
 
     try {
         const resp = await fetch(`${API_URL}${endpoint}`, opts);
         if (!resp.ok) {
-            const err = await resp.json().catch(() => ({}));
-            throw new Error(err.error || `HTTP ${resp.status}`);
+            let errMsg = `HTTP ${resp.status}`;
+            try { const err = await resp.json(); errMsg = err.error || errMsg; } catch (e) { }
+            throw new Error(errMsg);
         }
         return await resp.json();
     } catch (e) {
+        const msg = e.message || 'Network error';
         console.error(`API error (${endpoint}):`, e);
-        showToast(`❌ ${e.message}`);
+        // Show user-friendly error for common issues
+        if (msg.includes('Failed to fetch') || msg.includes('NetworkError')) {
+            showToast('❌ Cannot reach router API. Tunnel may be down.');
+        } else {
+            showToast(`❌ ${msg}`);
+        }
         throw e;
     }
 }
