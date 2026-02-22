@@ -3,19 +3,11 @@ name: Build Slipstream Client (OpenWrt musl)
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 6 * * 0'  # Weekly on Sunday
+    - cron: '0 6 * * 0'
 
 jobs:
-  build:
+  build-x86_64:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        include:
-          - target: x86_64-unknown-linux-musl
-            artifact: slipstream-client-linux-amd64-musl
-          - target: aarch64-unknown-linux-musl
-            artifact: slipstream-client-linux-arm64-musl
-
     steps:
       - name: Checkout slipstream-rust source
         uses: actions/checkout@v4
@@ -23,42 +15,65 @@ jobs:
           repository: Mygod/slipstream-rust
           submodules: recursive
 
-      - name: Install Rust toolchain
+      - name: Install musl toolchain & deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y musl-tools cmake perl pkg-config libssl-dev
+
+      - name: Install Rust with musl target
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.target }}
+          targets: x86_64-unknown-linux-musl
 
-      - name: Install cross
-        run: cargo install cross --git https://github.com/cross-rs/cross
-
-      - name: Create Cross.toml for musl OpenSSL
+      - name: Build slipstream-client (native musl)
         run: |
-          cat > Cross.toml << 'EOF'
-          [target.x86_64-unknown-linux-musl]
-          pre-build = [
-            "DEBIAN_FRONTEND=noninteractive apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends cmake perl"
-          ]
-
-          [target.aarch64-unknown-linux-musl]
-          pre-build = [
-            "DEBIAN_FRONTEND=noninteractive apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends cmake perl"
-          ]
-          EOF
-
-      - name: Build slipstream-client
-        run: cross build --release --target ${{ matrix.target }} -p slipstream-client --features openssl-vendored
+          export CC=musl-gcc
+          export OPENSSL_STATIC=1
+          export OPENSSL_LIB_DIR=/usr/lib/x86_64-linux-gnu
+          export OPENSSL_INCLUDE_DIR=/usr/include
+          cargo build --release --target x86_64-unknown-linux-musl -p slipstream-client
         env:
-          CROSS_CONTAINER_OPTS: "--platform linux/amd64"
-          OPENSSL_STATIC: "1"
+          RUSTFLAGS: "-C target-feature=+crt-static"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.artifact }}
-          path: target/${{ matrix.target }}/release/slipstream-client
+          name: slipstream-client-linux-amd64-musl
+          path: target/x86_64-unknown-linux-musl/release/slipstream-client
+
+  build-aarch64:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout slipstream-rust source
+        uses: actions/checkout@v4
+        with:
+          repository: Mygod/slipstream-rust
+          submodules: recursive
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Build in Alpine arm64 container
+        run: |
+          docker run --rm --platform linux/arm64 \
+            -v "${{ github.workspace }}:/workspace" \
+            -w /workspace \
+            alpine:3.19 sh -c '
+              apk add --no-cache rust cargo cmake make perl openssl-dev openssl-libs-static musl-dev gcc g++ git bash pkgconf linux-headers
+              export OPENSSL_STATIC=1
+              export RUSTFLAGS="-C target-feature=+crt-static"
+              cargo build --release -p slipstream-client
+              cp target/release/slipstream-client /workspace/slipstream-client-arm64
+            '
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: slipstream-client-linux-arm64-musl
+          path: slipstream-client-arm64
 
   release:
-    needs: build
+    needs: [build-x86_64, build-aarch64]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -71,8 +86,10 @@ jobs:
           mkdir -p release
           for dir in slipstream-client-*; do
             if [ -d "$dir" ]; then
-              cp "$dir/slipstream-client" "release/$dir"
-              chmod +x "release/$dir"
+              for f in "$dir"/*; do
+                cp "$f" "release/$dir"
+                chmod +x "release/$dir"
+              done
             fi
           done
           ls -la release/
@@ -84,7 +101,7 @@ jobs:
           name: "Slipstream Client (OpenWrt musl builds)"
           body: |
             Automatically built `slipstream-client` binaries for OpenWrt (musl libc).
-            These are statically linked and ready to run on OpenWrt routers.
+            Statically linked — ready to run on OpenWrt routers.
 
             | File | Architecture |
             |------|-------------|
@@ -93,4 +110,3 @@ jobs:
           files: release/*
           prerelease: false
           make_latest: true
-
