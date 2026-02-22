@@ -32,16 +32,40 @@ document.addEventListener('DOMContentLoaded', () => {
 // ─── Parse Data from Bot ───────────────────────────────────────
 function parseInitData() {
     try {
-        // Data is passed via the ?data= query parameter (since Telegram overrides the #hash)
+        // Data is passed via compact ?d= query parameter
         const params = new URLSearchParams(window.location.search);
-        const dataParam = params.get('data');
+        const dataParam = params.get('d') || params.get('data');
         if (dataParam) {
-            configData = JSON.parse(dataParam);
+            const raw = JSON.parse(dataParam);
+            // Map compact keys to full names
+            configData = {
+                running: raw.s || raw.running || false,
+                active_node: raw.n || raw.active_node || '',
+                nodes: (raw.nl || raw.nodes || []).map(n => ({ id: n.i || n.id, remark: n.r || n.remark })),
+                dns: {
+                    remote_dns_protocol: raw.dp || (raw.dns && raw.dns.remote_dns_protocol) || 'tcp',
+                    remote_dns: raw.ds || (raw.dns && raw.dns.remote_dns) || '',
+                    remote_dns_doh: raw.dd || (raw.dns && raw.dns.remote_dns_doh) || '',
+                    remote_fakedns: raw.df || (raw.dns && raw.dns.remote_fakedns) || '0',
+                    dns_redirect: raw.dr || (raw.dns && raw.dns.dns_redirect) || '1',
+                    remote_dns_query_strategy: raw.dqs || (raw.dns && raw.dns.remote_dns_query_strategy) || 'UseIPv4',
+                    direct_dns_query_strategy: raw.dqd || (raw.dns && raw.dns.direct_dns_query_strategy) || 'UseIP',
+                    remote_dns_detour: raw.det || (raw.dns && raw.dns.remote_dns_detour) || 'remote',
+                    remote_dns_client_ip: (raw.dns && raw.dns.remote_dns_client_ip) || '',
+                    dns_hosts: (raw.dns && raw.dns.dns_hosts) || '',
+                },
+                socks: raw.socks || [],
+                servers: raw.servers || [],
+                acl: raw.acl || [],
+                shunt_rules: raw.shunt_rules || [],
+                haproxy: raw.haproxy || [],
+                subscriptions: raw.subscriptions || [],
+            };
         }
     } catch (e) {
         console.error('Failed to parse init data:', e);
     }
-    // Always initialize UI, even if empty
+    // Always initialize UI
     populateUI(configData);
 }
 
