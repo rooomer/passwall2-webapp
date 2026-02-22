@@ -163,6 +163,7 @@ function populateUI(data) {
     // ACL, Shunt, SOCKS, HAProxy, etc.
     renderACL(data.acl || []);
     renderShuntRules(data.shunt_rules || []);
+    renderShuntNodes(data.shunt_nodes || []);
     renderList('socksList', data.socks || [], s => ({
         name: `Port ${s.port || '?'}`, detail: `Node: ${s.node || 'N/A'}`, status: s.enabled === '1' ? '🟢' : '🔴'
     }));
@@ -610,6 +611,38 @@ function renderShuntRules(rules) {
         const infoStr = infoParts.length ? `<div class="shunt-meta">${escHtml(infoParts.join(' | '))}</div>` : '';
 
         el.innerHTML = `<div class="shunt-header"><span class="shunt-name">${escHtml(r.remarks || r['.name'] || '?')}</span><button class="btn btn-xs btn-primary" onclick='openShuntModal(${JSON.stringify(JSON.stringify(r))})'>✏️ Edit</button></div>${infoStr}<div class="shunt-preview">📂 ${domainCount} domains, 🌐 ${ipCount} IPs</div>`;
+        container.appendChild(el);
+    });
+}
+
+function renderShuntNodes(shuntNodes) {
+    let container = document.getElementById('shuntNodesList');
+    if (!container) {
+        // Create container dynamically after shuntList
+        const shuntList = document.getElementById('shuntList');
+        if (shuntList && shuntList.parentNode) {
+            container = document.createElement('div');
+            container.id = 'shuntNodesList';
+            container.style.marginTop = '12px';
+            shuntList.parentNode.insertBefore(container, shuntList.nextSibling);
+        } else { return; }
+    }
+    if (!shuntNodes || !shuntNodes.length) { container.innerHTML = ''; return; }
+    container.innerHTML = '<div style="font-weight:600;font-size:0.95rem;margin-bottom:8px;">🔀 Shunt Routing Nodes</div>';
+    shuntNodes.forEach(sn => {
+        const el = document.createElement('div');
+        el.className = 'shunt-item';
+        const dests = sn.destinations || {};
+        const destEntries = Object.entries(dests);
+        let destHtml = destEntries.map(([rule, dest]) => {
+            const destLabel = dest === '_direct' ? '🟢 Direct' : dest === '_blackhole' ? '⛔ Block' : dest === '_default' ? '🔵 Default' : escHtml(dest);
+            return `<div style="display:flex;justify-content:space-between;padding:2px 0;font-size:0.8rem;"><span style="color:rgba(255,255,255,0.7);">${escHtml(rule)}</span><span style="font-weight:600;">${destLabel}</span></div>`;
+        }).join('');
+        if (sn.default_node) {
+            const defLabel = sn.default_node === '_direct' ? '🟢 Direct' : sn.default_node === '_blackhole' ? '⛔ Block' : escHtml(sn.default_node);
+            destHtml += `<div style="display:flex;justify-content:space-between;padding:2px 0;font-size:0.8rem;border-top:1px solid rgba(255,255,255,0.1);margin-top:4px;padding-top:4px;"><span style="color:rgba(255,255,255,0.5);">Default</span><span style="font-weight:600;">${defLabel}</span></div>`;
+        }
+        el.innerHTML = `<div class="shunt-header"><span class="shunt-name">${escHtml(sn.remarks || sn.id)}</span><span class="shunt-meta">${escHtml(sn.type)} | ${escHtml(sn.domainStrategy || 'auto')}</span></div><div style="margin-top:6px;">${destHtml || '<div class="empty-state">No routes</div>'}</div>`;
         container.appendChild(el);
     });
 }
