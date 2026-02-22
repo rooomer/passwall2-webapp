@@ -6,8 +6,20 @@ on:
     - cron: '0 6 * * 0'
 
 jobs:
-  build-x86_64:
+  build:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-musl
+            arch: amd64
+            docker_platform: linux/amd64
+            artifact: slipstream-client-linux-amd64-musl
+          - target: aarch64-unknown-linux-musl
+            arch: arm64
+            docker_platform: linux/arm64
+            artifact: slipstream-client-linux-arm64-musl
+
     steps:
       - name: Checkout slipstream-rust source
         uses: actions/checkout@v4
@@ -15,66 +27,48 @@ jobs:
           repository: Mygod/slipstream-rust
           submodules: recursive
 
-      - name: Install build deps
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y musl-tools cmake perl
-
-      - name: Install Rust with musl target
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: x86_64-unknown-linux-musl
-
-      - name: Build slipstream-client (x86_64 musl)
-        run: |
-          export CC=musl-gcc
-          export OPENSSL_STATIC=1
-          cargo build --release --target x86_64-unknown-linux-musl -p slipstream-client --features openssl-vendored
-        env:
-          RUSTFLAGS: "-C target-feature=+crt-static"
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: slipstream-client-linux-amd64-musl
-          path: target/x86_64-unknown-linux-musl/release/slipstream-client
-
-  build-aarch64:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout slipstream-rust source
-        uses: actions/checkout@v4
-        with:
-          repository: Mygod/slipstream-rust
-          submodules: recursive
-
-      - name: Set up QEMU
+      - name: Set up QEMU (for arm64)
+        if: matrix.arch == 'arm64'
         uses: docker/setup-qemu-action@v3
 
-      - name: Build in Alpine arm64 container
+      - name: Build in Alpine container
         run: |
-          docker run --rm --platform linux/arm64 \
+          docker run --rm --platform ${{ matrix.docker_platform }} \
             -v "${{ github.workspace }}:/workspace" \
             -w /workspace \
             alpine:edge sh -c '
               apk add --no-cache curl gcc g++ musl-dev cmake make perl \
                 openssl-dev openssl-libs-static git bash pkgconf linux-headers
-              curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+              
+              # Install Rust via rustup
+              curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
               source $HOME/.cargo/env
+              
+              # Configure Cargo to build fully static binaries for the target ONLY
+              # (Proc-macros for the host will remain dynamic, avoiding the clap_derive error)
+              mkdir -p .cargo
+              cat > .cargo/config.toml <<EOF
+              [target.${{ matrix.target }}]
+              rustflags = ["-C", "target-feature=+crt-static"]
+              EOF
+              
               export OPENSSL_STATIC=1
-              export RUSTFLAGS="-C target-feature=+crt-static"
-              cargo build --release -p slipstream-client
-              cp target/release/slipstream-client /workspace/slipstream-client-arm64
+              
+              # Explicitly pass --target to force Cargo to separate host/target build contexts
+              cargo build --target ${{ matrix.target }} --release -p slipstream-client
+              
+              # Copy artifact out
+              cp target/${{ matrix.target }}/release/slipstream-client /workspace/${{ matrix.artifact }}
             '
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: slipstream-client-linux-arm64-musl
-          path: slipstream-client-arm64
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.artifact }}
 
   release:
-    needs: [build-x86_64, build-aarch64]
+    needs: [build]
     runs-on: ubuntu-latest
     permissions:
       contents: write
