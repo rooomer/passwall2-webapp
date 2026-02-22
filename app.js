@@ -865,6 +865,35 @@ async function doPing() {
     } catch (e) { resEl.textContent = '❌ Failed'; }
 }
 
+async function checkServices() {
+    const grid = document.getElementById('svcMonitorGrid');
+    grid.innerHTML = '<div class="empty-state">⏳ Checking services...</div>';
+    try {
+        const r = await apiCall('/api/action/check_services', 'POST', {});
+        const services = r.services || [];
+        const general = services.filter(s => s.cat !== 'gaming');
+        const gaming = services.filter(s => s.cat === 'gaming');
+        let html = '';
+        if (general.length) {
+            html += '<div class="svc-section-title">🌐 General Services</div><div class="svc-grid">';
+            general.forEach(s => { html += buildSvcCard(s); });
+            html += '</div>';
+        }
+        if (gaming.length) {
+            html += '<div class="svc-section-title" style="margin-top:12px;">🎮 Gaming Services</div><div class="svc-grid">';
+            gaming.forEach(s => { html += buildSvcCard(s); });
+            html += '</div>';
+        }
+        grid.innerHTML = html || '<div class="empty-state">No services</div>';
+    } catch (e) { grid.innerHTML = '<div class="empty-state">❌ Check failed</div>'; }
+}
+function buildSvcCard(s) {
+    const isUp = s.status === 'READY';
+    const badge = isUp ? '<span class="svc-badge svc-up">READY</span>' : '<span class="svc-badge svc-down">DOWN</span>';
+    const latency = s.ms ? `<span class="svc-latency">${s.ms}ms</span>` : '';
+    return `<div class="svc-card ${isUp ? '' : 'svc-card-down'}"><div class="svc-card-top"><span class="svc-icon">${escHtml(s.icon)}</span><div><div class="svc-name">${escHtml(s.name)}</div><div class="svc-host">${escHtml(s.host)}</div></div></div><div class="svc-card-bottom">${badge}${latency}</div></div>`;
+}
+
 // ═══════════════════════════════════════════════════════════════
 //  TABS
 // ═══════════════════════════════════════════════════════════════

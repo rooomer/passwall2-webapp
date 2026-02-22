@@ -318,6 +318,19 @@
 
         <!-- ═══════════ TOOLS TAB ═══════════ -->
         <section class="tab-content" id="tab-tools">
+            <!-- System Monitor -->
+            <div class="card glass">
+                <div class="card-header">
+                    <h2>📡 System Monitor</h2>
+                    <button class="btn btn-primary btn-sm" onclick="checkServices()">🔄 Refresh</button>
+                </div>
+                <div class="card-body">
+                    <div id="svcMonitorGrid" class="svc-monitor-grid">
+                        <div class="empty-state">Click Refresh to check connectivity</div>
+                    </div>
+                </div>
+            </div>
+
             <div class="card glass">
                 <div class="card-header">
                     <h2>🔄 Subscriptions</h2>

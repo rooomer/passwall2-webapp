@@ -900,3 +900,92 @@ body {
     margin-top: 4px;
     opacity: 0.8;
 }
+
+/* ─── System Monitor Grid ──────────────────────────── */
+.svc-monitor-grid {
+    margin-top: 8px;
+}
+
+.svc-section-title {
+    font-weight: 600;
+    font-size: 0.85rem;
+    margin-bottom: 8px;
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.svc-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 8px;
+}
+
+.svc-card {
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+    padding: 10px;
+    transition: all 0.2s;
+}
+
+.svc-card:hover {
+    background: rgba(255, 255, 255, 0.1);
+    transform: translateY(-1px);
+}
+
+.svc-card-down {
+    border-color: rgba(239, 83, 80, 0.4);
+    background: rgba(239, 83, 80, 0.08);
+}
+
+.svc-card-top {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.svc-icon {
+    font-size: 1.3rem;
+}
+
+.svc-name {
+    font-weight: 600;
+    font-size: 0.8rem;
+    color: #fff;
+    line-height: 1.2;
+}
+
+.svc-host {
+    font-size: 0.65rem;
+    color: rgba(255, 255, 255, 0.5);
+}
+
+.svc-card-bottom {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.svc-badge {
+    font-size: 0.6rem;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.svc-up {
+    background: rgba(0, 230, 118, 0.15);
+    color: #00e676;
+}
+
+.svc-down {
+    background: rgba(239, 83, 80, 0.15);
+    color: #ef5350;
+}
+
+.svc-latency {
+    font-size: 0.65rem;
+    color: rgba(255, 255, 255, 0.5);
+}
