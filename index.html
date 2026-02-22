@@ -368,6 +368,46 @@
                 </div>
             </div>
 
+            <!-- DNSTT DNS Tunnel -->
+            <div class="card glass">
+                <div class="card-header">
+                    <h2>🔐 DNSTT DNS Tunnel</h2>
+                    <div class="header-actions">
+                        <span class="svc-badge" id="dnsttStatus">—</span>
+                        <button class="btn btn-primary btn-sm" onclick="refreshDnstt()">🔄</button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="slip-status-row" id="dnsttStatusRow">
+                        <span id="dnsttArch">Arch: —</span>
+                        <span id="dnsttInstalled">Binary: —</span>
+                        <span id="dnsttPort">Port: —</span>
+                    </div>
+                    <div class="custom-input-group">
+                        <label>Tunnel Domain</label>
+                        <input type="text" id="dnsttDomain" placeholder="tunnel.example.com">
+                    </div>
+                    <div class="custom-input-group">
+                        <label>Public Key (64 hex digits)</label>
+                        <input type="text" id="dnsttPubkey" placeholder="abcdef0123456789...">
+                    </div>
+                    <div class="custom-input-group">
+                        <label>Resolver (optional)</label>
+                        <input type="text" id="dnsttResolver" placeholder="8.8.8.8">
+                    </div>
+                    <div class="custom-input-group">
+                        <label>Listen Port</label>
+                        <input type="number" id="dnsttListenPort" value="7000" placeholder="7000">
+                    </div>
+                    <div class="control-grid" style="margin-top:10px;">
+                        <button class="btn btn-success" onclick="dnsttConnect()">🚀 Save & Connect</button>
+                        <button class="btn btn-danger" onclick="dnsttDisconnect()">⛔ Disconnect</button>
+                        <button class="btn btn-warning" onclick="dnsttInstall()">📦 Install Binary</button>
+                    </div>
+                    <pre class="result-box" id="dnsttLog" style="margin-top:8px;"></pre>
+                </div>
+            </div>
+
             <div class="card glass">
                 <div class="card-header">
                     <h2>🔄 Subscriptions</h2>

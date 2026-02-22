@@ -950,6 +950,64 @@ async function slipstreamInstall() {
 }
 
 // ═══════════════════════════════════════════════════════════════
+//  DNSTT DNS TUNNEL
+// ═══════════════════════════════════════════════════════════════
+
+async function refreshDnstt() {
+    const log = document.getElementById('dnsttLog');
+    log.textContent = 'Checking status...';
+    try {
+        const r = await apiCall('/api/action/dnstt_status', 'POST', {});
+        const badge = document.getElementById('dnsttStatus');
+        if (r.running) { badge.textContent = 'RUNNING'; badge.className = 'svc-badge svc-up'; }
+        else { badge.textContent = 'STOPPED'; badge.className = 'svc-badge svc-down'; }
+        document.getElementById('dnsttArch').textContent = 'Arch: ' + (r.arch || '—');
+        document.getElementById('dnsttInstalled').textContent = 'Binary: ' + (r.installed ? '✅' : '❌');
+        document.getElementById('dnsttPort').textContent = 'Port: ' + (r.port || '—');
+        if (r.domain) document.getElementById('dnsttDomain').value = r.domain;
+        if (r.pubkey) document.getElementById('dnsttPubkey').value = r.pubkey;
+        if (r.resolver) document.getElementById('dnsttResolver').value = r.resolver;
+        if (r.port) document.getElementById('dnsttListenPort').value = r.port;
+        log.textContent = JSON.stringify(r, null, 2);
+    } catch (e) { log.textContent = '❌ Failed to get status'; }
+}
+
+async function dnsttConnect() {
+    const domain = document.getElementById('dnsttDomain').value.trim();
+    const pubkey = document.getElementById('dnsttPubkey').value.trim();
+    const resolver = document.getElementById('dnsttResolver').value.trim();
+    const listen_port = parseInt(document.getElementById('dnsttListenPort').value) || 7000;
+    const log = document.getElementById('dnsttLog');
+    if (!domain || !pubkey) { log.textContent = '⚠️ Domain and Public Key are required'; return; }
+    log.textContent = '🚀 Saving config and connecting...';
+    try {
+        const r = await apiCall('/api/action/set_dnstt_config', 'POST', { domain, pubkey, resolver, listen_port });
+        log.textContent = r.ok ? '✅ ' + r.msg : '❌ ' + r.msg;
+        setTimeout(refreshDnstt, 2000);
+    } catch (e) { log.textContent = '❌ Connection failed'; }
+}
+
+async function dnsttDisconnect() {
+    const log = document.getElementById('dnsttLog');
+    log.textContent = '⛔ Disconnecting...';
+    try {
+        const r = await apiCall('/api/action/dnstt_stop', 'POST', {});
+        log.textContent = '✅ ' + r.msg;
+        setTimeout(refreshDnstt, 1000);
+    } catch (e) { log.textContent = '❌ Failed'; }
+}
+
+async function dnsttInstall() {
+    const log = document.getElementById('dnsttLog');
+    log.textContent = '📦 Downloading binary for your architecture...';
+    try {
+        const r = await apiCall('/api/action/dnstt_install', 'POST', {});
+        log.textContent = r.ok ? '✅ ' + r.msg : '❌ ' + r.msg;
+        setTimeout(refreshDnstt, 1000);
+    } catch (e) { log.textContent = '❌ Install failed'; }
+}
+
+// ═══════════════════════════════════════════════════════════════
 //  TABS
 // ═══════════════════════════════════════════════════════════════
 
