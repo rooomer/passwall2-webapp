@@ -72,6 +72,8 @@ function api_handler()
         result = install_binary("slipstream")
     elseif action == "dnstt_install" then
         result = install_binary("dnstt")
+    elseif action == "masscan_install" then
+        result = install_binary("masscan")
     -- Scanner actions (proxy to Python bot API)
     elseif action == "scanner_start" then
         result = scanner_api("dns_scanner_start", http)
@@ -260,10 +262,22 @@ function install_binary(tunnel)
             aarch64 = "dnstt-client-linux-arm64",
             armv7l = "dnstt-client-linux-armv7",
         },
+        masscan = {
+            armv7l = "masscan-armv7-openwrt.zip",
+        },
     }
-    local tag = tunnel == "slipstream" and "slipstream-latest" or "dnstt-latest"
+    local tags = {slipstream = "slipstream-latest", dnstt = "dnstt-latest", masscan = "masscan-latest"}
+    local tag = tags[tunnel] or "unknown"
     local fname = (map[tunnel] or {})[arch]
     if not fname then return {ok = false, msg = "Unsupported arch: " .. arch} end
+
+    if tunnel == "masscan" then
+        local url = "https://github.com/rooomer/passwall2-webapp/releases/latest/download/" .. fname
+        local cmd = string.format('wget -q -O /tmp/masscan.zip "%s" && unzip -o /tmp/masscan.zip -d /tmp/ && mv /tmp/masscan /usr/bin/masscan && chmod +x /usr/bin/masscan && rm -f /tmp/masscan.zip', url)
+        os.execute(cmd)
+        return {ok = true, msg = "Masscan installed"}
+    end
+
     local bin = tunnel == "slipstream" and "/usr/bin/slipstream-client" or "/usr/bin/dnstt-client"
     local url = "https://github.com/rooomer/passwall2-webapp/releases/download/" .. tag .. "/" .. fname
     local cmd = string.format('wget -q -O "%s" "%s" && chmod +x "%s"', bin, url, bin)
