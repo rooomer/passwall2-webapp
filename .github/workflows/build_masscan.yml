@@ -23,14 +23,8 @@ jobs:
       - name: Compile statically in ARMv7 Alpine (musl)
         run: |
           docker run --rm --platform linux/arm/v7 -v ${{ github.workspace }}/masscan:/masscan -w /masscan alpine:latest sh -c "
-            apk add --no-cache build-base linux-headers wget flex bison &&
-            wget https://www.tcpdump.org/release/libpcap-1.10.4.tar.gz &&
-            tar xzf libpcap-1.10.4.tar.gz &&
-            cd libpcap-1.10.4 &&
-            ./configure --disable-shared && make -j4 &&
-            cd .. &&
-            sed -i 's/#include "stub-pcap.h"/#include "stub-pcap.h"\n#include <pcap.h>/g' src/stub-pcap.c &&
-            make -j4 CC='gcc -static' CFLAGS='-O3 -I./libpcap-1.10.4 -DSTATICPCAP' LDFLAGS='-static -L./libpcap-1.10.4 -lpcap'
+            apk add --no-cache build-base linux-headers flex bison libpcap-dev &&
+            make -j4 CC='gcc -static' CFLAGS='-O3 -DSTATICPCAP -Wno-implicit-function-declaration -Wno-int-conversion -Wno-return-mismatch' LDFLAGS='-static -lpcap'
           "
 
       - name: Zip Binary
