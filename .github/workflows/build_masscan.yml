@@ -29,6 +29,7 @@ jobs:
             cd libpcap-1.10.4 &&
             ./configure --disable-shared && make -j4 &&
             cd .. &&
+            sed -i 's/#include "stub-pcap.h"/#include "stub-pcap.h"\n#include <pcap.h>/g' src/stub-pcap.c &&
             make -j4 CC='gcc -static' CFLAGS='-O3 -I./libpcap-1.10.4 -DSTATICPCAP' LDFLAGS='-static -L./libpcap-1.10.4 -lpcap'
           "
 
