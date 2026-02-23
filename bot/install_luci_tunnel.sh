@@ -569,8 +569,8 @@ cat > "$LUCI_DIR/view/dnstunnel/scanner.htm" << 'HTMEOF'
             <div id="masscanOptsLuci" style="display:none;margin-top:6px;">
                 <small style="opacity:0.5;">First scans port 53 with masscan, then tests only open IPs for DNS tunnel.</small>
                 <div class="cbi-value" style="margin-top:4px;"><label>Rate (pps)</label>
-                    <input type="range" id="sc_masscan_rate" min="100" max="10000" value="1000" step="100" style="width:200px" oninput="document.getElementById('sc_rate_val').textContent=this.value">
-                    <b id="sc_rate_val">1000</b>
+                    <input type="number" id="sc_masscan_rate" min="1" max="100000" value="1000" step="1" style="width:120px">
+                    <small>pps</small>
                 </div>
             </div>
         </div>
