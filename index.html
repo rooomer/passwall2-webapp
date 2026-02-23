@@ -541,11 +541,9 @@
                                 <label>Scan Rate (pps) <span
                                         style="font-size:0.7rem;opacity:0.5;">packets/sec</span></label>
                                 <div style="display:flex;gap:8px;align-items:center;">
-                                    <input type="range" id="scanMasscanRate" min="100" max="10000" value="1000"
-                                        step="100" style="flex:1;"
-                                        oninput="document.getElementById('masscanRateVal').textContent=this.value">
-                                    <span id="masscanRateVal"
-                                        style="font-size:0.85rem;font-weight:700;min-width:45px;">1000</span>
+                                    <input type="number" id="scanMasscanRate" min="1" max="100000" value="1000" step="1"
+                                        style="flex:1;padding:6px 10px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);color:var(--fg);font-size:0.9rem;">
+                                    <span style="font-size:0.75rem;opacity:0.5;">pps</span>
                                 </div>
                             </div>
                         </div>
