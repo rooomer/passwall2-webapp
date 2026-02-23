@@ -22,10 +22,21 @@ jobs:
 
       - name: Compile statically in ARMv7 Alpine (musl)
         run: |
-          docker run --rm --platform linux/arm/v7 -v ${{ github.workspace }}/masscan:/masscan -w /masscan alpine:latest sh -c "
+          docker run --rm --platform linux/arm/v7 \
+            -v ${{ github.workspace }}/masscan:/masscan -w /masscan \
+            alpine:latest sh -c '
             apk add --no-cache build-base linux-headers flex bison libpcap-dev &&
-            make -j4 CC='gcc -static' CFLAGS='-O3 -DSTATICPCAP -Dpcap_init=masscan_pcap_init -Wno-implicit-function-declaration -Wno-int-conversion -Wno-return-mismatch' LDFLAGS='-static -lpcap'
-          "
+            sed -i "86s/.*/static pcap_t *null_PCAP_CREATE(const char *s, char *e) { return pcap_create(s, e); }/" src/stub-pcap.c &&
+            sed -i "87s/.*/static int null_PCAP_SET_SNAPLEN(pcap_t *p, int v) { return pcap_set_snaplen(p, v); }/" src/stub-pcap.c &&
+            sed -i "88s/.*/static int null_PCAP_SET_PROMISC(pcap_t *p, int v) { return pcap_set_promisc(p, v); }/" src/stub-pcap.c &&
+            sed -i "89s/.*/static int null_PCAP_SET_TIMEOUT(pcap_t *p, int v) { return pcap_set_timeout(p, v); }/" src/stub-pcap.c &&
+            sed -i "90s/.*/static int null_PCAP_SET_IMMEDIATE_MODE(pcap_t *p, int v) { return pcap_set_immediate_mode(p, v); }/" src/stub-pcap.c &&
+            sed -i "91s/.*/static int null_PCAP_SET_BUFFER_SIZE(pcap_t *p, int v) { return pcap_set_buffer_size(p, v); }/" src/stub-pcap.c &&
+            sed -i "92s/.*/static int null_PCAP_SET_RFMON(pcap_t *p, int v) { return pcap_set_rfmon(p, v); }/" src/stub-pcap.c &&
+            sed -i "93s/.*/static int null_PCAP_CAN_SET_RFMON(pcap_t *p) { return pcap_can_set_rfmon(p); }/" src/stub-pcap.c &&
+            sed -i "94s/.*/static int null_PCAP_ACTIVATE(pcap_t *p) { return pcap_activate(p); }/" src/stub-pcap.c &&
+            make -j4 CC="gcc -static" CFLAGS="-O3 -DSTATICPCAP -Dpcap_init=masscan_pcap_init -Wno-implicit-function-declaration -Wno-int-conversion -Wno-return-mismatch" LDFLAGS="-static -lpcap"
+          '
 
       - name: Zip Binary
         run: zip -j masscan-armv7-openwrt.zip masscan/bin/masscan
