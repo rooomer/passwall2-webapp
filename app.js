@@ -1387,6 +1387,9 @@ async function pollScanStatus() {
         // Status badge
         const badge = document.getElementById('scannerStatus');
         if (s.paused) { badge.textContent = '⏸️ paused'; }
+        else if (s.running && s.phase === 'masscan') {
+            badge.textContent = '🔍 masscan: ' + (s.masscan_progress || 'starting...');
+        }
         else if (s.running) { badge.textContent = '🟢 scanning'; }
         else { badge.textContent = 'idle'; }
 
